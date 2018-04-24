@@ -1,0 +1,312 @@
+import math
+import torch
+import torch.nn as nn 
+from torch.autograd import Variable, Function 
+from torch.nn.parameter import Parameter 
+from torch.nn import functional as F
+from torch.nn._functions.thnn import rnnFusedPointwise as fusedBackend 
+
+def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
+    
+    hx_origin, cx = hidden 
+    W, U, G = weight 
+    
+    if mask_u is not None:
+        hx_origin = hx_origin*mask_u  
+
+    if G is not None: 
+        gh = F.sigmoid(hx_origin.bmm(G)) 
+        gh = gh.expand_as(hx_origin) 
+        hx_origin = gh * hx_origin 
+
+    if feedback is True: 
+        hx = [] 
+        for i in range(len(hx_origin)):
+            hx.append(hx_origin[i])
+    
+        hx = torch.cat(hx, 1) 
+        hx = hx.repeat(len(hx_origin), 1, 1) 
+
+    else: 
+        hx = hx_origin 
+
+    hx_next = []
+    cx_next = [] 
+    
+    for i in range(hx.size(0)): 
+        
+        if mask_w is not None: 
+        	input = input*mask_w[i]
+        
+        igates = F.linear(input, W[i]) 
+        hgates = F.linear(hx[i], U[i]) 
+        
+        state = fusedBackend.LSTMFused.apply
+        
+        input, cy = state(igates, hgates, cx[i]) 
+        
+        hx_next.append(input)
+        cx_next.append(cy) 
+    
+    hx_next = torch.stack(hx_next, 0) 
+    cx_next = torch.stack(cx_next, 0) 
+    
+    return hx_next, cx_next
+
+def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
+
+    hx_origin, cx = hidden 
+    W, U, G, L = weight 
+    
+    if mask_u is not None:
+        hx_origin = hx_origin*mask_u
+
+    if G is not None: 
+        gh = F.sigmoid(hx_origin.bmm(G)) 
+        gh = gh.expand_as(hx_origin) 
+        hx_origin = gh * hx_origin 
+ 
+    if feedback is True:
+        hx = [] 
+        for i in range(len(hx_origin)):
+            hx.append(hx_origin[i])
+        
+        hx = torch.cat(hx, 1) 
+        hx = hx.repeat(len(hx_origin), 1, 1) 
+       
+    else: 
+        hx = hx_origin 
+    
+    hx_next = []
+    cx_next = [] 
+    
+    input = Variable(output.data.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_())
+#    hx_output = torch.stack([torch.cat([hx[i], output], 1) for i in range(hx.size(0))],0) 
+    
+    for i in range(hx.size(0)): 
+        
+        hgates = F.linear(hx[i], U[i]) 
+        if i==0: 
+        	igates = input
+        else:
+        	if mask_w is not None: 
+        		input = input*mask_w[i-1] 
+        
+        	igates = F.linear(input, W[i-1]) 
+        
+        state = fusedBackend.LSTMFused.apply 
+        input, cy = state(igates, hgates, cx[i])
+        
+        hx_next.append(input) 
+        cx_next.append(cy) 
+        
+    hx_next = torch.stack(hx_next, 0) 
+    cx_next = torch.stack(cx_next, 0) 
+    
+    return input, (hx_next, cx_next)
+        
+
+def Recurrent(feedback):
+
+	inner = encoder_lstm 
+
+	def forward(input, hidden, weight, mask_u, mask_w): 
+		steps = input.size(0) 
+		output = [] 
+
+		for t in range(steps): 
+			hidden = inner(input[t], hidden, weight, feedback, mask_u, mask_w) 
+
+		return hidden 
+
+	return forward
+
+
+def Recurrent_Decoder(feedback):
+    
+    inner = decoder_lstm 
+    
+    def forward(output, hidden, steps, linear, weight, mask_u, mask_w): 
+        
+        outputs = [] 
+        _, _, _, L = weight
+        
+        for t in range(steps-1): 
+            output = linear(output) 
+            output, hidden = inner(output, hidden, weight, feedback, mask_u, mask_w) 
+            if mask_w is not None: 
+                output = output*mask_w[-1] 
+            
+            output = F.linear(output, L) 
+            outputs.append(output) 
+ 
+        outputs = torch.stack(outputs, 0) 
+        return outputs
+    
+    return forward
+
+		
+class Encoder(nn.Module): 
+    def __init__(self, ninp, nhid, nlayers, dropout=0.2, h_dropout=0.0, feedback=False, gated=False): 
+        super(Encoder, self).__init__() 
+        
+        self.ninp = ninp 
+        self.nhid = nhid
+        self.nlayers = nlayers 
+        self.v_dropout = dropout
+        self.h_dropout = h_dropout 
+        
+        self.feedback = feedback
+        self.gated = gated
+        
+        self.linear = nn.Linear(ninp, nhid) 
+        
+        self.w_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+        if feedback: 
+        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nlayers*nhid)) 
+        else:
+        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+        
+        if gated:
+            self.g_weight = Parameter(torch.Tensor(nlayers, nhid, 1)) 
+        else:
+            self.g_weight = None 
+        
+        self._all_weights = ['w_weight', 'u_weight', 'g_weight'] 
+        
+        self.reset_parameters() 
+
+    def reset_parameters(self):
+        stdv = 1.0/math.sqrt(self.nhid) 
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv) 
+
+    @property
+    def all_weights(self): 
+        return [getattr(self, weight) for weight in self._all_weights] 
+
+    def init_hidden(self, bsz): 
+        weight = next(self.parameters()).data
+	
+        return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()), # hidden
+				Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())) # context
+
+
+    def forward(self, input, hidden=None): 
+        
+        # input: seqlen by batch by dim 
+        bsz = input.size(1) 
+        if hidden is None:
+            hidden = self.init_hidden(bsz)
+        
+        input = self.linear(input) 
+        
+        if self.v_dropout>0 and self.training: 
+            self.mask_w = Variable(input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout)) 
+        else:
+            self.mask_w = None 
+        
+        if self.h_dropout>0 and self.training: 
+            self.mask_u = Variable(input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout))
+        else:
+            self.mask_u = None 
+        
+        hidden = Recurrent(self.feedback)(input, hidden, self.all_weights, self.mask_u, self.mask_w)
+        return hidden
+
+class Decoder(nn.Module): 
+    def __init__(self, nout, nhid, nlayers, dropout=0.2, h_dropout=0.0, feedback=False, gated=False):
+
+        super(Decoder, self).__init__()
+        self.nout = nout
+        self.nhid = nhid
+        self.nlayers = nlayers 
+        self.v_dropout = dropout
+        self.h_dropout = h_dropout 
+
+        self.feedback = feedback 
+        self.gated = gated 
+
+        self.linear = nn.Linear(nout, nhid) 
+        
+        self.w_weight = Parameter(torch.Tensor(nlayers-1, 4*nhid, nhid)) 
+        if feedback: 
+        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nlayers*nhid))
+        else:
+        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+
+        if gated:
+            self.g_weight = Parameter(torch.Tensor(nlayers, nhid, 1)) 
+        else:
+            self.g_weight = None 
+
+        self.l_weight = Parameter(torch.Tensor(nout, nhid)) 
+
+        self._all_weights = ['w_weight', 'u_weight', 'g_weight', 'l_weight']
+        self.reset_parameters() 
+    
+    def reset_parameters(self):
+        stdv = 1.0/math.sqrt(self.nhid) 
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv) 
+    
+    @property
+    def all_weights(self): 
+    	return [getattr(self, weight) for weight in self._all_weights] 
+    
+    def forward(self, hidden, steps):
+        
+        bsz = hidden[0].size(1) 
+        output = F.linear(hidden[0][-1], self.l_weight) 
+        
+        if self.v_dropout>0 and self.training: 
+            self.mask_w = Variable(output.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout)) 
+        else:
+            self.mask_w = None 
+        
+        if self.h_dropout>0 and self.training: 
+            self.mask_u = Variable(output.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout))
+        else:
+            self.mask_u = None 
+        
+        if steps>1: 
+            outputs = Recurrent_Decoder(self.feedback)(output, hidden, steps, self.linear, self.all_weights, self.mask_u, self.mask_w) 
+            outputs = torch.cat([output.unsqueeze(0), outputs], 0)
+        else: 
+            outputs = output.unsqueeze(0) 
+        
+        return outputs
+
+class EncDecAD(nn.Module):
+    def __init__(self, ninp, nhid, nout, nlayers, dropout=0.2, h_dropout=0.0, feedback=False, gated=False):
+        super(EncDecAD, self).__init__() 
+        
+        self.ninp = ninp
+        self.nhid = nhid
+        self.nout = nout 
+        self.nlayers = nlayers 
+        self.dropout = dropout
+        self.h_dropout = h_dropout 
+
+        self.feedback = feedback 
+        self.gated = gated
+        
+        self.linear = nn.Linear(ninp, nhid) 
+        self.encoder = Encoder(nhid, nhid, nlayers, dropout=dropout, h_dropout=h_dropout, feedback=feedback, gated=gated)
+        self.decoder = Decoder(nout, nhid, nlayers, dropout=dropout, h_dropout=h_dropout, feedback=feedback, gated=gated) 
+
+    def forward(self, input, hidden=None):
+        
+        bsz = input.size(1) 
+        emb = self.linear(input.view(-1, input.size(-1))) 
+        emb = emb.view(-1, bsz, emb.size(-1)) 
+        hidden = self.encoder(emb, hidden)
+        output = self.decoder(hidden, input.size(0)) 
+        
+        return output, hidden 
+
+    def init_hidden(self, bsz): 
+        weight = next(self.parameters()).data 
+        
+        return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()), # hidden
+                Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())) # context
