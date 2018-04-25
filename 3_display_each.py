@@ -26,96 +26,83 @@ if __name__ == '__main__':
 
     args = parser.parse_args() 
 
-    # check whether if there is a trained file in saved folder 
-    param_folder_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + ('_feedback:1' if args.feedback else '_feedback:0') + ('_gated:0') 
-    save_folder = Path('result', args.data, args.filename, param_folder_name) 
+    root_path = Path('result', args.data)
 
-    if save_folder.joinpath('model_dictionary.pt').is_file() is not True: 
-        print('There is no trained model in ')
-        print(str(save_folder)) 
-        sys.exit() 
+    for rp in root_path.iterdir(): 
+        
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1' 
+        subroot_path = rp.joinpath(param_name) 
 
-    
+        if subroot_path.joinpath('precision.pkl').is_file() is False:
+            continue 
 
-    gen = pickle.load(open(str(save_folder.joinpath('gen_dataset.pkl')), 'rb')) 
-    outs = pickle.load(open(str(save_folder.joinpath('out_dataset.pkl')), 'rb'))
-    
-    labels = pickle.load(open(str(save_folder.joinpath('labels.pkl')), 'rb')) 
-    scores = pickle.load(open(str(save_folder.joinpath('scores.pkl')), 'rb'))
-    
-    precision = pickle.load(open(str(save_folder.joinpath('precision.pkl')), 'rb')) 
-    recall = pickle.load(open(str(save_folder.joinpath('recall.pkl')), 'rb')) 
-    
-    seqlen = 1500
-    
-    # original sequence 
-    gen = gen.squeeze() 
-    fig = tools.make_subplots(rows=2*gen.size(1), cols=1) 
 
-    for channel in range(gen.size(1)): 
+        gen = pickle.load(open(str(subroot_path.joinpath('gen_dataset.pkl')), 'rb')) 
+        outs = pickle.load(open(str(subroot_path.joinpath('out_dataset.pkl')), 'rb'))
+        
+        labels = pickle.load(open(str(subroot_path.joinpath('labels.pkl')), 'rb')) 
+        scores = pickle.load(open(str(subroot_path.joinpath('scores.pkl')), 'rb'))
+        
+        precision = pickle.load(open(str(subroot_path.joinpath('precision.pkl')), 'rb')) 
+        recall = pickle.load(open(str(subroot_path.joinpath('recall.pkl')), 'rb')) 
+        
+        seqlen = 1500
+        
+        # original sequence 
+        gen = gen.squeeze() 
+        fig = tools.make_subplots(rows=2*gen.size(1), cols=1) 
     
-        normal = list(gen[:seqlen, channel])
-        abnormal = list(gen[:seqlen,channel]) 
+        for channel in range(gen.size(1)): 
         
-        for i in range(seqlen):
-            if labels[i]==1:
-                normal[i]=None 
-            else:
-                abnormal[i]=None 
-        
-        trace_normal= go.Scatter(
-            x = list(range(1, 1+seqlen)),
-            y = normal, 
-            mode = 'lines+markers', 
-            marker=dict(size=1,),
-           ) 
-        
-        trace_abnormal= go.Scatter(
-            x = list(range(1, 1+seqlen)),
-            y = abnormal, 
-            mode = 'lines+markers', 
-            marker=dict(size=1,),
-           ) 
-        
-        print(channel)
-        fig.append_trace(trace_normal, channel*2+1, 1) 
-        fig.append_trace(trace_abnormal, channel*2+1, 1) 
-        
-        for out in outs:
-            out = out.squeeze() 
-        
-            trace_out = go.Scatter(
+            normal = list(gen[:seqlen, channel])
+            abnormal = list(gen[:seqlen,channel]) 
+            
+            for i in range(seqlen):
+                if labels[i]==1:
+                    normal[i]=None 
+                else:
+                    abnormal[i]=None 
+            
+            trace_normal= go.Scatter(
+                x = list(range(1, 1+seqlen)),
+                y = normal, 
+                mode = 'lines+markers', 
+                marker=dict(size=1,),
+               ) 
+            
+            trace_abnormal= go.Scatter(
+                x = list(range(1, 1+seqlen)),
+                y = abnormal, 
+                mode = 'lines+markers', 
+                marker=dict(size=1,),
+               ) 
+            
+            print(channel)
+            fig.append_trace(trace_normal, channel*2+1, 1) 
+            fig.append_trace(trace_abnormal, channel*2+1, 1) 
+            
+            for out in outs:
+                out = out.squeeze() 
+            
+                trace_out = go.Scatter(
+                    x = torch.Tensor(range(1, 1+seqlen)), 
+                    y = out[:seqlen, channel].data.cpu(), 
+                    mode = 'lines+markers',
+                    line = dict(dash='dot'), 
+                    marker=dict(size=2,),
+                    ) 
+                fig.append_trace(trace_out, channel*2+1, 1) 
+            
+            trace_score = go.Scatter(   
                 x = torch.Tensor(range(1, 1+seqlen)), 
-                y = out[:seqlen, channel].data.cpu(), 
-                mode = 'lines+markers',
-                line = dict(dash='dot'), 
-                marker=dict(size=2,),
+                y = scores[:seqlen, channel].data.cpu(), 
+                mode = 'lines+markers', 
+                marker=dict(size=1,), 
                 ) 
-            fig.append_trace(trace_out, channel*2+1, 1) 
+    
+            fig.append_trace(trace_score, channel*2+2, 1) 
         
-        trace_score = go.Scatter(   
-            x = torch.Tensor(range(1, 1+seqlen)), 
-            y = scores[:seqlen, channel].data.cpu(), 
-            mode = 'lines+markers', 
-            marker=dict(size=1,), 
-            ) 
-
-        fig.append_trace(trace_score, channel*2+2, 1) 
-    
-    
-    fig['layout'].update(title='Result', plot_bgcolor='rgb(239,239,239)') 
-    plotly.offline.plot(fig, filename=str(save_folder.joinpath('one.html'))) 
-    
-    # precision-recall 
-    trace_pr = go.Scatter( 
-        x = recall, 
-        y = precision, 
-        mode = 'line_markers', 
-        name = 'prcurve', 
-        )
-    
-    plotly.offline.plot({
-        'data': [trace_pr], 
-        'layout': go.Layout(title='prcurve', plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
-    
-        }, filename=str(save_folder.joinpath('prcurve.html'))) 
+        
+        fig['layout'].update(title=str(subroot_path), plot_bgcolor='rgb(239,239,239)') 
+        plotly.offline.plot(fig, filename=str(subroot_path.joinpath('result.html'))) 
+        
