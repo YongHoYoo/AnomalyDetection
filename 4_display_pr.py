@@ -46,7 +46,7 @@ if __name__ == '__main__':
         trace_pr = go.Scatter( 
             x = recall, 
             y = precision, 
-            mode = 'line_markers', 
+            mode = 'lines+markers', 
             name = param_name, 
             )
 
@@ -59,8 +59,6 @@ if __name__ == '__main__':
             }, filename='prcurve.html')
 
     # table 
-
-        
     f_score = [param_names, f_0_1, f_1_0]
 
     trace_table = go.Table(

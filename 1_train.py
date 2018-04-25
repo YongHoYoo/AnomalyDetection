@@ -26,7 +26,6 @@ if __name__=='__main__':
     parser.add_argument('--seqlen', type=list, default=[4,8,16,32,64]) 
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--ninp', type=int, default=2) 
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
     parser.add_argument('--nlayers', type=int, default=2) 
@@ -40,12 +39,17 @@ if __name__=='__main__':
     args = parser.parse_args() 
 
     TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename)  
+    
+    print(TimeseriesData.trainData)     
+
+    ninp = TimeseriesData.trainData.size(-1) 
+
     train_dataset = TimeseriesData.batchify(TimeseriesData.trainData, args.bsz) 
     test_dataset = TimeseriesData.batchify(TimeseriesData.testData, args.bsz) 
     gen_dataset = TimeseriesData.batchify(TimeseriesData.testData, 1) 
 
-    encDecAD = EncDecAD(args.ninp, args.nhid, args.ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
-    bestEncDecAD = EncDecAD(args.ninp, args.nhid, args.ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
+    encDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
+    bestEncDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
  
     encDecAD.cuda()
     bestEncDecAD.cuda()     

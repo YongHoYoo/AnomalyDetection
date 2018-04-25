@@ -18,6 +18,8 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
     precision = torch.zeros(len(th))
     recall = torch.zeros(len(th)) 
 
+    precision = []
+    recall = [] 
     
     for i in range(len(th)):
         anomaly = (score>th[i]).float() 
@@ -27,8 +29,16 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
         fp = (idx==2).sum() # fp
         tp = (idx==3).sum() # tp 
         
-        precision[i] = tp/(tp+fp+1e-7)
-        recall[i] = tp/(tp+fn+1e-7) 
+        p = tp/(tp+fp+1e-7)
+        r = tp/(tp+fn+1e-7) 
+
+        if p!=0 and r!=0:
+            precision.append(p) 
+            recall.append(r) 
+
+        precision = torch.cat(precision, 0) 
+        recall = torch.cat(recall, 0) 
+        
 
     f1 = (1+beta**2)*torch.max((precision*recall).div(beta**2*precision+recall+1e-7))
         
@@ -72,6 +82,8 @@ if __name__ == '__main__':
 
     if save_folder.joinpath('recall.pkl').is_file() is True: 
         print('The precision, and recall were already calculated!') 
+        print(str(save_folder)) 
+        sys.exit() 
 
     def get_batch(source, seqlen, i):
         seqlen = min(seqlen, len(source)-i) 
@@ -92,6 +104,7 @@ if __name__ == '__main__':
         for seqlen in args.seqlen: 
 
             hidden = None
+            print(seqlen)
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
                 input, target = get_batch(dataset, seqlen, i) 
                 output, hidden = model(input, hidden) 
