@@ -15,9 +15,6 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
     maximum = score.max()
     th = torch.linspace(0, maximum, sz) 
     
-    precision = torch.zeros(len(th))
-    recall = torch.zeros(len(th)) 
-
     precision = []
     recall = [] 
     
@@ -36,9 +33,8 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
             precision.append(p) 
             recall.append(r) 
 
-        precision = torch.cat(precision, 0) 
-        recall = torch.cat(recall, 0) 
-        
+    precision = torch.Tensor(precision)
+    recall = torch.Tensor(recall) 
 
     f1 = (1+beta**2)*torch.max((precision*recall).div(beta**2*precision+recall+1e-7))
         

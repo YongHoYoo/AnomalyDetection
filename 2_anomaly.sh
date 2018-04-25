@@ -12,9 +12,9 @@ filename="stdb_308_0.pkl"
 #filename="ltstdb_20221_43.pkl" 
 
 
-python3 2_anomaly.py --data $data --filename $filename
-python3 2_anomaly.py --data $data --filename $filename --feedback
-python3 2_anomaly.py --data $data --filename $filename --gated
-python3 2_anomaly.py --data $data --filename $filename --feedback --gated
+CUDA_VISIBLE_DEVICES=1 python3 2_anomaly.py --data $data --filename $filename
+CUDA_VISIBLE_DEVICES=1 python3 2_anomaly.py --data $data --filename $filename --feedback
+CUDA_VISIBLE_DEVICES=1 python3 2_anomaly.py --data $data --filename $filename --gated
+CUDA_VISIBLE_DEVICES=1 python3 2_anomaly.py --data $data --filename $filename --feedback --gated
 
 

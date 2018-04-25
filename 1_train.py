@@ -39,8 +39,6 @@ if __name__=='__main__':
     args = parser.parse_args() 
 
     TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename)  
-    
-    print(TimeseriesData.trainData)     
 
     ninp = TimeseriesData.trainData.size(-1) 
 
