@@ -1,7 +1,7 @@
 import math
 import torch
 import torch.nn as nn 
-from torch.autograd import Variable, Function 
+from torch.autograd import Function
 from torch.nn.parameter import Parameter 
 from torch.nn import functional as F
 from torch.nn._functions.thnn import rnnFusedPointwise as fusedBackend 
@@ -80,8 +80,9 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
     hx_next = []
     cx_next = [] 
     
-    input = Variable(output.data.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_())
-#    hx_output = torch.stack([torch.cat([hx[i], output], 1) for i in range(hx.size(0))],0) 
+#    input = Variable(output.data.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_())
+
+    input = output.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_().requires_grad()
     
     for i in range(hx.size(0)): 
         
@@ -161,14 +162,14 @@ class Encoder(nn.Module):
         
         self.linear = nn.Linear(ninp, nhid) 
         
-        self.w_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+        self.w_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
         if feedback: 
-        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nlayers*nhid)) 
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid)) 
         else:
-        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
         
         if gated:
-            self.g_weight = Parameter(torch.Tensor(nlayers, nhid, 1)) 
+            self.g_weight = Parameter(torch.empty(nlayers, nhid, 1)) 
         else:
             self.g_weight = None 
         
@@ -187,9 +188,9 @@ class Encoder(nn.Module):
 
     def init_hidden(self, bsz): 
         weight = next(self.parameters()).data
-	
-        return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()), # hidden
-				Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())) # context
+	    
+        return (weight.new(self.nlayers, bsz, self.nhid).zero_().requires_grad_(), 
+        weight.new(self.nlayers, bsz, self.nhid).zero_().requires_grad_()) 
 
 
     def forward(self, input, hidden=None): 
@@ -202,12 +203,12 @@ class Encoder(nn.Module):
         input = self.linear(input) 
         
         if self.v_dropout>0 and self.training: 
-            self.mask_w = Variable(input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout)) 
+            self.mask_w = input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout).requires_grad() 
         else:
             self.mask_w = None 
         
         if self.h_dropout>0 and self.training: 
-            self.mask_u = Variable(input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout))
+            self.mask_u = input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout).requires_grad() 
         else:
             self.mask_u = None 
         
@@ -229,18 +230,18 @@ class Decoder(nn.Module):
 
         self.linear = nn.Linear(nout, nhid) 
         
-        self.w_weight = Parameter(torch.Tensor(nlayers-1, 4*nhid, nhid)) 
+        self.w_weight = Parameter(torch.empty(nlayers-1, 4*nhid, nhid)) 
         if feedback: 
-        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nlayers*nhid))
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid))
         else:
-        	self.u_weight = Parameter(torch.Tensor(nlayers, 4*nhid, nhid)) 
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
 
         if gated:
-            self.g_weight = Parameter(torch.Tensor(nlayers, nhid, 1)) 
+            self.g_weight = Parameter(torch.empty(nlayers, nhid, 1)) 
         else:
             self.g_weight = None 
 
-        self.l_weight = Parameter(torch.Tensor(nout, nhid)) 
+        self.l_weight = Parameter(torch.empty(nout, nhid)) 
 
         self._all_weights = ['w_weight', 'u_weight', 'g_weight', 'l_weight']
         self.reset_parameters() 

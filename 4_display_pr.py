@@ -60,8 +60,8 @@ if __name__ == '__main__':
             trace_pr = go.Scatter( 
                 x = recall, 
                 y = precision, 
-                mode = 'lines+markers', 
-                name = str(rp), 
+                mode = 'lines', 
+                name = str(subroot_path), 
                 )
 
             trace_prs.append(trace_pr) 
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     
         plotly.offline.plot({
             'data': [trace_table], 
-            'layout': go.Layout(title=str(rp))}, filename='table.html') 
+            'layout': go.Layout(title=str(rp))}, filename=str(rp.joinpath('_table.html')))
        
         
 
