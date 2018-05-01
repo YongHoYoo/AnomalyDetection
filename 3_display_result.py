@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0' 
         subroot_path = rp.joinpath(param_name) 
 
         if subroot_path.joinpath('precision.pkl').is_file() is False:
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         precision = pickle.load(open(str(subroot_path.joinpath('precision.pkl')), 'rb')) 
         recall = pickle.load(open(str(subroot_path.joinpath('recall.pkl')), 'rb')) 
         
-        seqlen = 1500
+        seqlen = 1200
         
         # original sequence 
         gen = gen.squeeze() 

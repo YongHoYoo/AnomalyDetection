@@ -23,7 +23,7 @@ if __name__=='__main__':
         help='filename of the dataset')
     
     parser.add_argument('--bsz', type=int, default=32)
-    parser.add_argument('--seqlen', type=list, default=[4,8,16,32,64]) 
+    parser.add_argument('--seqlen', type=list, default=[16]) 
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--nhid', type=int, default=64)
@@ -37,6 +37,8 @@ if __name__=='__main__':
     parser.add_argument('--verbose', action='store_true') 
 
     args = parser.parse_args() 
+    
+    device = torch.device('cuda') 
 
     TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename)  
 
@@ -49,8 +51,8 @@ if __name__=='__main__':
     encDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
     bestEncDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
  
-    encDecAD.cuda()
-    bestEncDecAD.cuda()     
+    encDecAD.to(device) 
+    bestEncDecAD.to(device) 
 
     # make save_folder 
     param_folder_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + ('_feedback:1' if args.feedback else '_feedback:0') + ('_gated:1' if args.gated else '_gated:0') 
@@ -59,10 +61,10 @@ if __name__=='__main__':
     save_folder.mkdir(parents=True, exist_ok=True)
 
     # if there is a file 'model_dictionary.pt', exit. 
-    if save_folder.joinpath('model_dictionary.pt').is_file(): 
-        print('There is already trained model in ') 
-        print(str(save_folder)) 
-        sys.exit() 
+#    if save_folder.joinpath('model_dictionary.pt').is_file(): 
+#        print('There is already trained model in ') 
+#        print(str(save_folder)) 
+#        sys.exit() 
  
 
     criterion = torch.nn.MSELoss() 
@@ -73,10 +75,10 @@ if __name__=='__main__':
     def get_batch(source, seqlen, i):
         seqlen = min(seqlen, len(source)-i) 
         input = source[i:i+seqlen] 
-        target_idx = torch.LongTensor(range(input.size(0)-1, -1, -1))
+        target_idx = torch.range(input.size(0)-1, 0,-1, dtype=torch.int64) 
         target = input.index_select(0, target_idx) 
-    
-        return Variable(input.cuda()), Variable(target.cuda()) 
+ 
+        return input.to(device).requires_grad_(), target.to(device)
 
     def train(model, dataset): 
         model.train() 
@@ -97,11 +99,11 @@ if __name__=='__main__':
                 loss = criterion(output, target) 
                 loss.backward() 
                 
-                torch.nn.utils.clip_grad_norm(encDecAD.parameters(), args.clip) 
-                train_loss += loss.data[0]
+                torch.nn.utils.clip_grad_norm_(encDecAD.parameters(), args.clip) 
+                train_loss += loss.item()
                 optimizer.step() 
     
-                hidden = (Variable(hidden[0].data), Variable(hidden[1].data)) 
+                hidden = hidden[0].detach(), hidden[1].detach() 
         
             total_train_loss += train_loss/nbatch
             print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
@@ -126,7 +128,7 @@ if __name__=='__main__':
 
                 error = output-target # seqlen by batch by dim
                 errors.append(error.cpu()) # to avoid out of gpu memory 
-                hidden = (Variable(hidden[0].data), Variable(hidden[1].data)) 
+                hidden = hidden[0].detach(), hidden[1].detach() 
             
             all_errors.append(torch.cat(errors, 0).view(-1, dataset.size(2))) 
         
@@ -164,7 +166,7 @@ if __name__=='__main__':
                 input, target = get_batch(dataset, seqlen, i) 
                 output, hidden = model(input, hidden) 
                 loss = criterion(output, target) 
-                valid_loss += loss.data[0]
+                valid_loss += loss.item() 
             return valid_loss/len(args.seqlen) 
 
             total_valid_loss += valid_loss/nbatch

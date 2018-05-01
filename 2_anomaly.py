@@ -21,10 +21,10 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
     for i in range(len(th)):
         anomaly = (score>th[i]).float() 
         idx = anomaly*2+label
-        tn = (idx==0).sum() # tn
-        fn = (idx==1).sum() # fn
-        fp = (idx==2).sum() # fp
-        tp = (idx==3).sum() # tp 
+        tn = (idx==0).sum().item() # tn
+        fn = (idx==1).sum().item() # fn
+        fp = (idx==2).sum().item() # fp
+        tp = (idx==3).sum().item() # tp 
         
         p = tp/(tp+fp+1e-7)
         r = tp/(tp+fn+1e-7) 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         help='filename of the dataset')
 
     parser.add_argument('--bsz', type=int, default=32)
-    parser.add_argument('--seqlen', type=list, default=[4,8,16,32,64]) 
+    parser.add_argument('--seqlen', type=list, default=[16]) 
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--ninp', type=int, default=2) 
@@ -76,10 +76,10 @@ if __name__ == '__main__':
         print(str(save_folder)) 
         sys.exit() 
 
-    if save_folder.joinpath('recall.pkl').is_file() is True: 
-        print('The precision, and recall were already calculated!') 
-        print(str(save_folder)) 
-        sys.exit() 
+#    if save_folder.joinpath('recall.pkl').is_file() is True: 
+#        print('The precision, and recall were already calculated!') 
+#        print(str(save_folder)) 
+#        sys.exit() 
 
     def get_batch(source, seqlen, i):
         seqlen = min(seqlen, len(source)-i) 
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         for channel in range(all_errors.size(-1)):
             x = all_errors[:,:,channel].t() # n by 5
     
-            xm = x-means[:,channel]
+            xm = x.cpu()-means[:,channel]
             score = (xm.mm(covs[:,:,channel].inverse()))*xm
             scores.append(score.sum(1)) # n 
 
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     mean = checkpoint['mean'] 
     covariance = checkpoint['covariance'] 
 
-    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename)   
+    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False)   
     
     gen_dataset = TimeseriesData.batchify(TimeseriesData.testData, 1) 
     gen_label = TimeseriesData.testLabel

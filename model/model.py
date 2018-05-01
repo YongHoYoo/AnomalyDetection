@@ -82,7 +82,7 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
     
 #    input = Variable(output.data.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_())
 
-    input = output.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_().requires_grad()
+    input = output.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_().requires_grad_()
     
     for i in range(hx.size(0)): 
         
@@ -203,12 +203,12 @@ class Encoder(nn.Module):
         input = self.linear(input) 
         
         if self.v_dropout>0 and self.training: 
-            self.mask_w = input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout).requires_grad() 
+            self.mask_w = input.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout).requires_grad_() 
         else:
             self.mask_w = None 
         
         if self.h_dropout>0 and self.training: 
-            self.mask_u = input.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout).requires_grad() 
+            self.mask_u = input.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout).requires_grad_() 
         else:
             self.mask_u = None 
         
@@ -261,12 +261,12 @@ class Decoder(nn.Module):
         output = F.linear(hidden[0][-1], self.l_weight) 
         
         if self.v_dropout>0 and self.training: 
-            self.mask_w = Variable(output.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout)) 
+            self.mask_w = output.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.v_dropout).div(1-self.v_dropout).requires_grad_() 
         else:
             self.mask_w = None 
         
         if self.h_dropout>0 and self.training: 
-            self.mask_u = Variable(output.data.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout))
+            self.mask_u = output.new(self.nlayers, bsz, self.nhid).bernoulli_(1-self.h_dropout).div(1-self.h_dropout).requires_grad_() 
         else:
             self.mask_u = None 
         
@@ -309,5 +309,5 @@ class EncDecAD(nn.Module):
     def init_hidden(self, bsz): 
         weight = next(self.parameters()).data 
         
-        return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()), # hidden
-                Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())) # context
+        return (weight.new(self.nlayers, bsz, self.nhid).zero_().required_grad_(), # hidden
+                weight.new(self.nlayers, bsz, self.nhid).zero_().required_grad_()) # context
