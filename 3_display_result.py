@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1' 
         subroot_path = rp.joinpath(param_name) 
 
         if subroot_path.joinpath('precision.pkl').is_file() is False:
