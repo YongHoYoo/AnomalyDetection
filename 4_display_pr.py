@@ -24,9 +24,9 @@ if __name__ == '__main__':
     for rp in root_path.iterdir():
         param_names = [] 
         param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:0')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:1')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1') 
+ #       param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:0')
+  #      param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:1')
+ #       param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1') 
 
         all_saved = True
 

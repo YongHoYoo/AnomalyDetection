@@ -46,7 +46,7 @@ if __name__ == '__main__':
         precision = pickle.load(open(str(subroot_path.joinpath('precision.pkl')), 'rb')) 
         recall = pickle.load(open(str(subroot_path.joinpath('recall.pkl')), 'rb')) 
         
-        seqlen = 1200
+        seqlen = gen.size(0)
         
         # original sequence 
         gen = gen.squeeze() 

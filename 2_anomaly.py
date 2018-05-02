@@ -4,7 +4,6 @@ import torch
 import pickle 
 import argparse
 import preprocess_data 
-from torch.autograd import Variable
 from model.model import Encoder, Decoder, EncDecAD
 from pathlib import Path
 import torch.nn as nn
@@ -47,25 +46,31 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='ecg', 
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
+ #   parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
+  #      help='filename of the dataset')
+
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
 
-    parser.add_argument('--bsz', type=int, default=32)
-    parser.add_argument('--seqlen', type=list, default=[16]) 
+
+    parser.add_argument('--bsz', type=int, default=1)
+    parser.add_argument('--seqlen', type=list, default=[8,16,32,64,128]) 
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--ninp', type=int, default=2) 
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
     parser.add_argument('--nlayers', type=int, default=2) 
-    parser.add_argument('--dropout', type=float, default=0.35) 
-    parser.add_argument('--h_dropout', type=float, default=0.35) 
+    parser.add_argument('--dropout', type=float, default=0.25) 
+    parser.add_argument('--h_dropout', type=float, default=0.25) 
     parser.add_argument('--log_interval', type=int, default=10) 
     parser.add_argument('--feedback', action='store_true') 
     parser.add_argument('--gated', action='store_true') 
     parser.add_argument('--verbose', action='store_true') 
 
     args = parser.parse_args() 
+
+    device = torch.device('cuda') 
 
     # check whether if there is a trained file in saved folder 
     param_folder_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + ('_feedback:1' if args.feedback else '_feedback:0') + ('_gated:1' if args.gated else '_gated:0') 
@@ -87,7 +92,8 @@ if __name__ == '__main__':
         target_idx = torch.LongTensor(range(input.size(0)-1, -1, -1))
         target = input.index_select(0, target_idx) 
     
-        return Variable(input.cuda()), Variable(target.cuda()) 
+        return input.requires_grad_().to(device), target.requires_grad_().to(device) 
+
 
     def evaluate(model, dataset, reconstruct=False): 
         model.eval() 
@@ -109,7 +115,7 @@ if __name__ == '__main__':
     
                 if reconstruct is True: 
                    # output reverse 
-                        output_idx = Variable(torch.LongTensor(range(output.size(0)-1, -1, -1)).cuda())
+                        output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long()
                         reverse_output = output.index_select(0, output_idx) 
                         outputs.append(reverse_output) 
 
@@ -136,13 +142,13 @@ if __name__ == '__main__':
                 input, target = get_batch(dataset, seqlen, i) 
                 output, hidden = model(input, hidden)  # input 8 1 2
                 
-                output_idx = Variable(torch.LongTensor(range(output.size(0)-1, -1, -1)).cuda()) 
+                output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
                 reverse_output = output.index_select(0, output_idx) 
                 outputs.append(reverse_output) 
 
                 error = output-target 
                 errors.append(error) 
-                hidden = (Variable(hidden[0].data), Variable(hidden[1].data)) 
+                hidden = hidden[0].detach(), hidden[1].detach()
 
             outputs = torch.cat(outputs, 0) 
             all_outputs.append(outputs) 
@@ -154,7 +160,7 @@ if __name__ == '__main__':
         for channel in range(all_errors.size(-1)):
             x = all_errors[:,:,channel].t() # n by 5
     
-            xm = x.cpu()-means[:,channel]
+            xm = x-means[:,channel]
             score = (xm.mm(covs[:,:,channel].inverse()))*xm
             scores.append(score.sum(1)) # n 
 
@@ -172,7 +178,7 @@ if __name__ == '__main__':
     gen_label = TimeseriesData.testLabel
     
     encDecAD = EncDecAD(args.ninp, args.nhid, args.ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
-    encDecAD.cuda() 
+    encDecAD.to(device)
     
     encDecAD.load_state_dict(checkpoint['state_dict']) 
 
@@ -188,7 +194,7 @@ if __name__ == '__main__':
     pickle.dump(gen_label, open(str(save_folder.joinpath('labels.pkl')), 'wb')) 
 
     # Get precision, recall
-    precision, recall, f1 = get_precision_recall(gen_score[:,0].data.cpu(), gen_label.cpu(), 1000, beta=1.0) 
+    precision, recall, f1 = get_precision_recall(gen_score[:,0].data.cpu(), gen_label.cpu(), 10000, beta=1.0) 
     
     pickle.dump(precision, open(str(save_folder.joinpath('precision.pkl')), 'wb'))
     pickle.dump(recall, open(str(save_folder.joinpath('recall.pkl')), 'wb')) 

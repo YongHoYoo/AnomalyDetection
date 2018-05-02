@@ -4,6 +4,7 @@ import time
 import copy
 import torch
 import pickle 
+import random
 import argparse
 import preprocess_data 
 from torch.autograd import Variable
@@ -19,28 +20,30 @@ if __name__=='__main__':
     parser.add_argument('--data', type=str, default='ecg', 
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
+#    parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
+#        help='filename of the dataset')
+ 
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
-    
-    parser.add_argument('--bsz', type=int, default=32)
-    parser.add_argument('--seqlen', type=list, default=[16]) 
+   
+    parser.add_argument('--bsz', type=int, default=1)
+    parser.add_argument('--seqlen', type=list, default=[8,16,32,64,128]) 
     parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
     parser.add_argument('--nlayers', type=int, default=2) 
     parser.add_argument('--dropout', type=float, default=0.35) 
-    parser.add_argument('--h_dropout', type=float, default=0.35) 
-    parser.add_argument('--log_interval', type=int, default=10) 
+    parser.add_argument('--h_dropout', type=float, default=0.25) 
     parser.add_argument('--feedback', action='store_true') 
     parser.add_argument('--gated', action='store_true') 
-    parser.add_argument('--verbose', action='store_true') 
+    parser.add_argument('--split_ratio', type=float, default=0.7) 
 
     args = parser.parse_args() 
     
     device = torch.device('cuda') 
 
-    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename)  
+    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False)  
 
     ninp = TimeseriesData.trainData.size(-1) 
 
@@ -61,10 +64,10 @@ if __name__=='__main__':
     save_folder.mkdir(parents=True, exist_ok=True)
 
     # if there is a file 'model_dictionary.pt', exit. 
-#    if save_folder.joinpath('model_dictionary.pt').is_file(): 
-#        print('There is already trained model in ') 
-#        print(str(save_folder)) 
-#        sys.exit() 
+    if save_folder.joinpath('model_dictionary.pt').is_file(): 
+        print('There is already trained model in ') 
+        print(str(save_folder)) 
+        sys.exit() 
  
 
     criterion = torch.nn.MSELoss() 
@@ -78,7 +81,7 @@ if __name__=='__main__':
         target_idx = torch.range(input.size(0)-1, 0,-1, dtype=torch.int64) 
         target = input.index_select(0, target_idx) 
  
-        return input.to(device).requires_grad_(), target.to(device)
+        return input.to(device), target.to(device)
 
     def train(model, dataset): 
         model.train() 
@@ -87,6 +90,7 @@ if __name__=='__main__':
 
         total_train_loss = 0
 
+        random.shuffle(args.seqlen) 
         for seqlen in args.seqlen: 
             hidden = None
             train_loss = 0 
@@ -95,7 +99,7 @@ if __name__=='__main__':
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
                 input, target = get_batch(dataset, seqlen, i) 
                 optimizer.zero_grad() 
-                output, hidden = model(input, hidden) 
+                output, hidden = model(input.requires_grad_(), hidden) 
                 loss = criterion(output, target) 
                 loss.backward() 
                 
@@ -110,10 +114,17 @@ if __name__=='__main__':
                 epoch, seqlen, train_loss/nbatch)) 
 
         total_train_loss /= len(args.seqlen) 
-        return total_train_loss
+        args.seqlen.sort() 
+
+        return total_train_loss, hidden
 
     def calculate_params(model, dataset): 
         model.eval() 
+
+        # split dataset 
+        total_length = dataset.size(0) 
+        split_trainset = dataset[:int(total_length*args.split_ratio)] 
+        split_validset = dataset[int(total_length*args.split_ratio):] 
 
         all_errors = [] 
         
@@ -121,16 +132,21 @@ if __name__=='__main__':
             hidden = None 
             
             errors = [] 
-            
-            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)): 
-                input, target = get_batch(dataset, seqlen, i) 
+
+            for nbatch, i in enumerate(range(0, split_trainset.size(0), seqlen)):
+                input, _ = get_batch(split_trainset, seqlen, i) 
+                output, hidden = model(input, hidden) 
+                hidden = hidden[0].detach(), hidden[1].detach() 
+           
+            for nbatch, i in enumerate(range(0, split_validset.size(0), seqlen)): 
+                input, target = get_batch(split_validset, seqlen, i) 
                 output, hidden = model(input, hidden) 
 
                 error = output-target # seqlen by batch by dim
-                errors.append(error.cpu()) # to avoid out of gpu memory 
+                errors.append(error) # to avoid out of gpu memory 
                 hidden = hidden[0].detach(), hidden[1].detach() 
             
-            all_errors.append(torch.cat(errors, 0).view(-1, dataset.size(2))) 
+            all_errors.append(torch.cat(errors, 0).view(-1, split_validset.size(2))) 
         
         all_errors = torch.stack(all_errors, 0) # 5 by 51200 by 2
 
@@ -150,7 +166,7 @@ if __name__=='__main__':
             
 
 
-    def evaluate(model, dataset, reconstruct=False): 
+    def evaluate(model, dataset, last_hidden=None): 
         model.eval() 
         start_time = time.time() 
 
@@ -160,7 +176,7 @@ if __name__=='__main__':
 
             valid_loss = 0 
             outputs = [] 
-            hidden = None
+            hidden = (last_hidden[0].detach(), last_hidden[1].detach()) if last_hidden is not None else None
 
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
                 input, target = get_batch(dataset, seqlen, i) 
@@ -181,8 +197,8 @@ if __name__=='__main__':
             split_trainset = train_dataset[:int(total_length*0.7)] 
             split_validset = train_dataset[int(total_length*0.7):] 
 
-            train_loss = train(encDecAD, split_trainset) 
-            valid_loss = evaluate(encDecAD, split_validset) 
+            train_loss, last_hidden = train(encDecAD, split_trainset) 
+            valid_loss = evaluate(encDecAD, split_validset, last_hidden) 
 
             if best_val_loss is None or best_val_loss>valid_loss: 
                 best_val_loss = valid_loss 

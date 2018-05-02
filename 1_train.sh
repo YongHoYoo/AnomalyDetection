@@ -1,10 +1,10 @@
 #!/bin/bash
 
 data="ecg"
-#filename="chfdb_chf13_45590.pkl" 
+filename="chfdb_chf13_45590.pkl" 
 #filename="chfdb_chf01_275.pkl"
 #filename="chfdbchf15.pkl"
-filename="qtdbsel102.pkl" 
+#filename="qtdbsel102.pkl" 
 #filename="mitdb__100_180.pkl"
 #filename="stdb_308_0.pkl"
 #filename="ltstdb_20321_240.pkl"
