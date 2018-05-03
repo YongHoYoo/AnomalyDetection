@@ -21,29 +21,33 @@ if __name__=='__main__':
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
 #    parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
-#        help='filename of the dataset')
+ #       help='filename of the dataset')
  
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
    
-    parser.add_argument('--bsz', type=int, default=1)
-    parser.add_argument('--seqlen', type=list, default=[8,16,32,64,128]) 
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--lr', type=float, default=2e-4)
+    parser.add_argument('--bsz', type=int, default=8)
+    parser.add_argument('--seqlen', type=int, default=16) 
+    parser.add_argument('--epochs', type=int, default=120)
+    parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
     parser.add_argument('--nlayers', type=int, default=2) 
-    parser.add_argument('--dropout', type=float, default=0.35) 
-    parser.add_argument('--h_dropout', type=float, default=0.25) 
+    parser.add_argument('--dropout', type=float, default=0.5) 
+    parser.add_argument('--h_dropout', type=float, default=0.5) 
     parser.add_argument('--feedback', action='store_true') 
     parser.add_argument('--gated', action='store_true') 
     parser.add_argument('--split_ratio', type=float, default=0.7) 
 
     args = parser.parse_args() 
+
+    if args.feedback:
+        args.dropout+=0.15
+        args.h_dropout+=0.15
     
     device = torch.device('cuda') 
 
-    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False)  
+    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False) 
 
     ninp = TimeseriesData.trainData.size(-1) 
 
@@ -88,35 +92,31 @@ if __name__=='__main__':
 
         start_time = time.time() 
 
-        total_train_loss = 0
+        hidden = None
+        train_loss = 0 
 
-        random.shuffle(args.seqlen) 
-        for seqlen in args.seqlen: 
-            hidden = None
-            train_loss = 0 
+        model.train()
 
-            model.train()
-            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
-                input, target = get_batch(dataset, seqlen, i) 
-                optimizer.zero_grad() 
-                output, hidden = model(input.requires_grad_(), hidden) 
-                loss = criterion(output, target) 
-                loss.backward() 
-                
-                torch.nn.utils.clip_grad_norm_(encDecAD.parameters(), args.clip) 
-                train_loss += loss.item()
-                optimizer.step() 
+        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
+            input, target = get_batch(dataset, args.seqlen, i) 
+            noise = 1e-3*torch.randn(input.size()).to(device)
+            input_n = input + noise
+            optimizer.zero_grad() 
+            output, hidden = model(input_n.requires_grad_(), hidden) 
+            loss = criterion(output, target) 
+            loss.backward() 
+            
+            torch.nn.utils.clip_grad_norm_(encDecAD.parameters(), args.clip) 
+            train_loss += loss.item()
+            optimizer.step() 
     
-                hidden = hidden[0].detach(), hidden[1].detach() 
-        
-            total_train_loss += train_loss/nbatch
-            print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
-                epoch, seqlen, train_loss/nbatch)) 
+            hidden = hidden[0].detach(), hidden[1].detach() 
+ 
+        train_loss/=(nbatch+1) 
+#        print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
+#           epoch, args.seqlen, train_loss)) 
 
-        total_train_loss /= len(args.seqlen) 
-        args.seqlen.sort() 
-
-        return total_train_loss, hidden
+        return train_loss, hidden
 
     def calculate_params(model, dataset): 
         model.eval() 
@@ -126,108 +126,90 @@ if __name__=='__main__':
         split_trainset = dataset[:int(total_length*args.split_ratio)] 
         split_validset = dataset[int(total_length*args.split_ratio):] 
 
-        all_errors = [] 
-        
-        for seqlen in args.seqlen:
-            hidden = None 
-            
-            errors = [] 
+        hidden = None 
+        errors = [] 
 
-            for nbatch, i in enumerate(range(0, split_trainset.size(0), seqlen)):
-                input, _ = get_batch(split_trainset, seqlen, i) 
-                output, hidden = model(input, hidden) 
-                hidden = hidden[0].detach(), hidden[1].detach() 
+        for nbatch, i in enumerate(range(0, split_trainset.size(0), args.seqlen)):
+            input, _ = get_batch(split_trainset, args.seqlen, i) 
+            output, hidden = model(input, hidden) 
+            hidden = hidden[0].detach(), hidden[1].detach() 
+        
+        for nbatch, i in enumerate(range(0, split_validset.size(0), args.seqlen)): 
+            input, target = get_batch(split_validset, args.seqlen, i) 
+            output, hidden = model(input, hidden) 
+
+            error = output-target # seqlen by batch by dim
+            errors.append(error) 
+            hidden = hidden[0].detach(), hidden[1].detach() 
+
+        errors = torch.cat(errors, 0).view(-1, errors[0].size(-1)) # x by 2
+
+        mean = errors.mean(0) 
+        cov = (errors.t()).mm(errors)/errors.size(0) - mean.unsqueeze(1).mm(mean.unsqueeze(1).t()) 
+
+        return mean, cov 
            
-            for nbatch, i in enumerate(range(0, split_validset.size(0), seqlen)): 
-                input, target = get_batch(split_validset, seqlen, i) 
-                output, hidden = model(input, hidden) 
-
-                error = output-target # seqlen by batch by dim
-                errors.append(error) # to avoid out of gpu memory 
-                hidden = hidden[0].detach(), hidden[1].detach() 
-            
-            all_errors.append(torch.cat(errors, 0).view(-1, split_validset.size(2))) 
-        
-        all_errors = torch.stack(all_errors, 0) # 5 by 51200 by 2
-
-        means = [] 
-        covs = [] 
-        for channel in range(all_errors.size(-1)): 
-            x = all_errors[:,:,channel] # 5 by 51200 
-            mean = x.mean(1) 
-            cov = x.mm(x.t())/x.size(-1)-mean.unsqueeze(1).mm(mean.unsqueeze(1).t()) 
-            means.append(mean)
-            covs.append(cov) 
-
-        means = torch.stack(means, 1)
-        covs = torch.stack(covs, 2) 
-
-        return means, covs
-            
 
 
     def evaluate(model, dataset, last_hidden=None): 
         model.eval() 
         start_time = time.time() 
-
-        total_valid_loss = 0 
-
-        for seqlen in args.seqlen: 
-
-            valid_loss = 0 
-            outputs = [] 
-            hidden = (last_hidden[0].detach(), last_hidden[1].detach()) if last_hidden is not None else None
-
-            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
-                input, target = get_batch(dataset, seqlen, i) 
-                output, hidden = model(input, hidden) 
-                loss = criterion(output, target) 
-                valid_loss += loss.item() 
-            return valid_loss/len(args.seqlen) 
-
-            total_valid_loss += valid_loss/nbatch
+        
+        valid_loss = 0 
+  
+        hidden = (last_hidden[0].detach(), last_hidden[1].detach()) if last_hidden is not None else None
+  
+        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
+            input, target = get_batch(dataset, args.seqlen, i) 
+            output, hidden = model(input, hidden) 
+            loss = criterion(output, target) 
+            valid_loss += loss.item() 
+  
+        valid_loss/=(nbatch+1)
+        return valid_loss
 
     try: 
-        for epoch in range(args.epochs): 
-    
+      for epoch in range(args.epochs): 
+               
             start_time = time.time() 
-
+  
             # split dataset 
             total_length = train_dataset.size(0) 
-            split_trainset = train_dataset[:int(total_length*0.7)] 
-            split_validset = train_dataset[int(total_length*0.7):] 
-
+            split_trainset = train_dataset[:int(total_length*args.split_ratio)] 
+            split_validset = train_dataset[int(total_length*args.split_ratio):] 
+  
             train_loss, last_hidden = train(encDecAD, split_trainset) 
             valid_loss = evaluate(encDecAD, split_validset, last_hidden) 
-
+  
             if best_val_loss is None or best_val_loss>valid_loss: 
                 best_val_loss = valid_loss 
                 bestEncDecAD.load_state_dict(copy.deepcopy(encDecAD.state_dict()))
                 early_stop = 0 
             else: 
                 early_stop += 1 
-                if early_stop==10: 
-                    print('Validation loss is not updated more.')
-                    print('The iteration is terminated at iteration %d.'%epoch) 
-                    break 
-
+ #               if early_stop==10: 
+ #                   print('Validation loss %f is not updated more.'%best_val_loss)
+ #                   print('The iteration is terminated at iteration %d.'%epoch) 
+ #                   break 
+  
             print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | train loss {:5.4f} | valid loss {:5.4f} | '.format(epoch, (time.time() - start_time), train_loss, valid_loss))
+            print('| end of epoch {:3d} | time: {:5.2f}s | train loss {:5.4f} | valid loss {:5.4f} | '.format(epoch, (time.time() - start_time), train_loss, best_val_loss))
             print('-' * 89)
-    
+ 
+     
     except KeyboardInterrupt:
         print('-' * 89)
         print('Exiting from training early')
-
+  
     # get errors' mean & std, save model 
-    means, covs = calculate_params(bestEncDecAD, train_dataset) 
- 
+    mean, cov = calculate_params(bestEncDecAD, train_dataset) 
+  
     model_dictionary = {'state_dict': bestEncDecAD.state_dict(), 
-        'mean': means, 
-        'covariance': covs, 
-        'args': args,
-        }    
-
+         'mean': mean,
+         'covariance': cov,
+         'args': args,
+         }    
+             
     torch.save(model_dictionary, str(save_folder.joinpath('model_dictionary.pt')))
     print('The model is saved in ' + str(save_folder))
 

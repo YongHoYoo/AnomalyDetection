@@ -61,6 +61,7 @@ if __name__ == '__main__':
                 x = recall, 
                 y = precision, 
                 mode = 'lines', 
+                line = dict(shape='spline'), 
                 name = str(subroot_path), 
                 )
 

@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0' 
         subroot_path = rp.joinpath(param_name) 
 
         if subroot_path.joinpath('precision.pkl').is_file() is False:
@@ -39,6 +39,8 @@ if __name__ == '__main__':
 
         gen = pickle.load(open(str(subroot_path.joinpath('gen_dataset.pkl')), 'rb')) 
         outs = pickle.load(open(str(subroot_path.joinpath('out_dataset.pkl')), 'rb'))
+
+        print('outs.size', outs.size())
         
         labels = pickle.load(open(str(subroot_path.joinpath('labels.pkl')), 'rb')) 
         scores = pickle.load(open(str(subroot_path.joinpath('scores.pkl')), 'rb'))
@@ -50,7 +52,7 @@ if __name__ == '__main__':
         
         # original sequence 
         gen = gen.squeeze() 
-        fig = tools.make_subplots(rows=2*gen.size(1), cols=1) 
+        fig = tools.make_subplots(rows=gen.size(1)+1, cols=1) 
     
         for channel in range(gen.size(1)): 
         
@@ -77,31 +79,27 @@ if __name__ == '__main__':
                 marker=dict(size=1,),
                ) 
             
-            print(channel)
-            fig.append_trace(trace_normal, channel*2+1, 1) 
-            fig.append_trace(trace_abnormal, channel*2+1, 1) 
+            fig.append_trace(trace_normal, channel+1, 1) 
+            fig.append_trace(trace_abnormal, channel+1, 1) 
             
-            for out in outs:
-                out = out.squeeze() 
             
-                trace_out = go.Scatter(
-                    x = torch.Tensor(range(1, 1+seqlen)), 
-                    y = out[:seqlen, channel].data.cpu(), 
-                    mode = 'lines+markers',
-                    line = dict(dash='dot'), 
-                    marker=dict(size=2,),
-                    ) 
-                fig.append_trace(trace_out, channel*2+1, 1) 
-            
-            trace_score = go.Scatter(   
+            trace_out = go.Scatter(
                 x = torch.Tensor(range(1, 1+seqlen)), 
-                y = scores[:seqlen, channel].data.cpu(), 
-                mode = 'lines+markers', 
-                marker=dict(size=1,), 
+                y = outs[:seqlen, channel].data.cpu(), 
+                mode = 'lines+markers',
+                line = dict(dash='dot'), 
+                marker=dict(size=2,),
                 ) 
-    
-            fig.append_trace(trace_score, channel*2+2, 1) 
+            fig.append_trace(trace_out, channel+1, 1) 
+            
+        trace_score = go.Scatter(   
+            x = torch.Tensor(range(1, 1+seqlen)), 
+            y = scores[:seqlen].data.cpu(), 
+            mode = 'lines+markers', 
+            marker=dict(size=1,), 
+            ) 
         
+        fig.append_trace(trace_score, gen.size(1)+1, 1) 
         
         fig['layout'].update(title=str(subroot_path), plot_bgcolor='rgb(239,239,239)') 
         plotly.offline.plot(fig, filename=str(subroot_path.joinpath('result.html'))) 

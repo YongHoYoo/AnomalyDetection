@@ -11,7 +11,7 @@ import torch.nn as nn
 def get_precision_recall(score, label, sz, beta=1.0, wsz=1): 
     
     # interval, max, ...
-    maximum = score.max()
+    maximum = score.max().item()
     th = torch.linspace(0, maximum, sz) 
     
     precision = []
@@ -46,15 +46,14 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='ecg', 
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
- #   parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
-  #      help='filename of the dataset')
-
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
 
+  #  parser.add_argument('--filename', type=str, default='xmitdb_x108_0.pkl', 
+   #     help='filename of the dataset')
 
-    parser.add_argument('--bsz', type=int, default=1)
-    parser.add_argument('--seqlen', type=list, default=[8,16,32,64,128]) 
+
+    parser.add_argument('--seqlen', type=int, default=16) 
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--ninp', type=int, default=2) 
@@ -95,77 +94,50 @@ if __name__ == '__main__':
         return input.requires_grad_().to(device), target.requires_grad_().to(device) 
 
 
-    def evaluate(model, dataset, reconstruct=False): 
+    def evaluate(model, dataset): 
         model.eval() 
         total_loss = 0 
         start_time = time.time() 
 
-        if reconstruct is True:
-            outputs = [] 
+        hidden = None
 
-        for seqlen in args.seqlen: 
+        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
+            input, target = get_batch(dataset, args.seqlen, i) 
+            output, hidden = model(input, hidden) 
+            loss = criterion(output, target) 
+            total_loss += loss.item() 
 
-            hidden = None
-            print(seqlen)
-            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
-                input, target = get_batch(dataset, seqlen, i) 
-                output, hidden = model(input, hidden) 
-                loss = criterion(output, target) 
-                total_loss += loss.data[0]
-    
-                if reconstruct is True: 
-                   # output reverse 
-                        output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long()
-                        reverse_output = output.index_select(0, output_idx) 
-                        outputs.append(reverse_output) 
+        return total_loss/(nbatch+1) 
 
 
-        if reconstruct is True: 
-            outputs = torch.cat(outputs, 0) 
-            return total_loss/nbatch, outputs
-        else:
-            return total_loss/nbatch
-
-    def get_anomaly_score(model, dataset, means, covs): 
+    def get_anomaly_score(model, dataset, mean, cov): 
 
         assert(dataset.size(1)==1) 
 
-        all_errors = [] 
-        all_outputs = []     
+        hidden = None
+        errors = [] 
+        outputs = [] 
 
-        for seqlen in args.seqlen: 
-            hidden = None
-            errors = [] 
-            outputs = [] 
+        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
+            input, target = get_batch(dataset, args.seqlen, i) 
+            output, hidden = model(input, hidden)  # input 8 1 2
+            
+            output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
+            reverse_output = output.index_select(0, output_idx) 
+            outputs.append(reverse_output) 
 
-            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
-                input, target = get_batch(dataset, seqlen, i) 
-                output, hidden = model(input, hidden)  # input 8 1 2
-                
-                output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
-                reverse_output = output.index_select(0, output_idx) 
-                outputs.append(reverse_output) 
+            error = output-target 
+            errors.append(error) 
+            hidden = hidden[0].detach(), hidden[1].detach()
 
-                error = output-target 
-                errors.append(error) 
-                hidden = hidden[0].detach(), hidden[1].detach()
+        outputs = torch.cat(outputs, 0).squeeze() # x by 2
+        errors = torch.cat(errors, 0).squeeze()   # x by 2
 
-            outputs = torch.cat(outputs, 0) 
-            all_outputs.append(outputs) 
-            all_errors.append(torch.cat(errors, 0).squeeze()) # n 1 2 -> n 2
+        xm = (errors - mean)
+        score = (xm).mm(cov.inverse())*xm
+        score = score.sum(1) 
 
-        all_errors = torch.stack(all_errors, 0)  # 5 n 2
-
-        scores = [] 
-        for channel in range(all_errors.size(-1)):
-            x = all_errors[:,:,channel].t() # n by 5
-    
-            xm = x-means[:,channel]
-            score = (xm.mm(covs[:,:,channel].inverse()))*xm
-            scores.append(score.sum(1)) # n 
-
-        scores = torch.stack(scores, 1) # n by 2
-        return all_outputs, scores         
+        return outputs, score
  
     # save   
     checkpoint = torch.load(str(save_folder.joinpath('model_dictionary.pt')))
@@ -194,7 +166,7 @@ if __name__ == '__main__':
     pickle.dump(gen_label, open(str(save_folder.joinpath('labels.pkl')), 'wb')) 
 
     # Get precision, recall
-    precision, recall, f1 = get_precision_recall(gen_score[:,0].data.cpu(), gen_label.cpu(), 10000, beta=1.0) 
+    precision, recall, f1 = get_precision_recall(gen_score.cpu(), gen_label.cpu(), 1000, beta=1.0) 
     
     pickle.dump(precision, open(str(save_folder.joinpath('precision.pkl')), 'wb'))
     pickle.dump(recall, open(str(save_folder.joinpath('recall.pkl')), 'wb')) 
