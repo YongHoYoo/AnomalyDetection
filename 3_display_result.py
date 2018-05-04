@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0' 
         subroot_path = rp.joinpath(param_name) 
 
         if subroot_path.joinpath('precision.pkl').is_file() is False:
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         seqlen = gen.size(0)
         
         # original sequence 
-        gen = gen.squeeze() 
+        gen = gen.view(seqlen, -1) 
         fig = tools.make_subplots(rows=gen.size(1)+1, cols=1) 
     
         for channel in range(gen.size(1)): 

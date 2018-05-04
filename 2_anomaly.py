@@ -53,18 +53,17 @@ if __name__ == '__main__':
    #     help='filename of the dataset')
 
 
-    parser.add_argument('--seqlen', type=int, default=16) 
+    parser.add_argument('--seqlen', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--ninp', type=int, default=2) 
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
     parser.add_argument('--nlayers', type=int, default=2) 
     parser.add_argument('--dropout', type=float, default=0.25) 
     parser.add_argument('--h_dropout', type=float, default=0.25) 
-    parser.add_argument('--log_interval', type=int, default=10) 
     parser.add_argument('--feedback', action='store_true') 
     parser.add_argument('--gated', action='store_true') 
+    parser.add_argument('--hidden_tied', action='store_true') 
     parser.add_argument('--verbose', action='store_true') 
 
     args = parser.parse_args() 
@@ -72,7 +71,7 @@ if __name__ == '__main__':
     device = torch.device('cuda') 
 
     # check whether if there is a trained file in saved folder 
-    param_folder_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + ('_feedback:1' if args.feedback else '_feedback:0') + ('_gated:1' if args.gated else '_gated:0') 
+    param_folder_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + ('_F:1' if args.feedback else '_F:0') + ('_G:1' if args.gated else '_G:0') + ('_H:1' if args.hidden_tied else '_H:0') 
     save_folder = Path('result', args.data, args.filename, param_folder_name) 
 
     if save_folder.joinpath('model_dictionary.pt').is_file() is not True: 
@@ -91,7 +90,7 @@ if __name__ == '__main__':
         target_idx = torch.LongTensor(range(input.size(0)-1, -1, -1))
         target = input.index_select(0, target_idx) 
     
-        return input.requires_grad_().to(device), target.requires_grad_().to(device) 
+        return input.to(device), target.to(device) 
 
 
     def evaluate(model, dataset): 
@@ -103,7 +102,7 @@ if __name__ == '__main__':
 
         for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
             input, target = get_batch(dataset, args.seqlen, i) 
-            output, hidden = model(input, hidden) 
+            output, hidden, _, _ = model(input, hidden) 
             loss = criterion(output, target) 
             total_loss += loss.item() 
 
@@ -115,23 +114,25 @@ if __name__ == '__main__':
         assert(dataset.size(1)==1) 
 
         hidden = None
+        model.eval() 
+
         errors = [] 
         outputs = [] 
 
         for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
             input, target = get_batch(dataset, args.seqlen, i) 
-            output, hidden = model(input, hidden)  # input 8 1 2
+            output, hidden, _, _ = model(input, hidden)  # input 8 1 2
             
             output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
             reverse_output = output.index_select(0, output_idx) 
             outputs.append(reverse_output) 
 
             error = output-target 
-            errors.append(error) 
-            hidden = hidden[0].detach(), hidden[1].detach()
+            reverse_error = error.index_select(0, output_idx) 
+            errors.append(reverse_error) 
 
-        outputs = torch.cat(outputs, 0).squeeze() # x by 2
-        errors = torch.cat(errors, 0).squeeze()   # x by 2
+        outputs = torch.cat(outputs, 0).view(-1,dataset.size(-1))
+        errors = torch.cat(errors, 0).view(-1, dataset.size(-1))
 
         xm = (errors - mean)
         score = (xm).mm(cov.inverse())*xm
@@ -143,19 +144,19 @@ if __name__ == '__main__':
     checkpoint = torch.load(str(save_folder.joinpath('model_dictionary.pt')))
     mean = checkpoint['mean'] 
     covariance = checkpoint['covariance'] 
+    best_val_loss = checkpoint['best_loss'] 
 
-    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False)   
+    TimeseriesData = preprocess_data.PickleDataLoad(data_type=args.data, filename=args.filename, augment=False)
     
     gen_dataset = TimeseriesData.batchify(TimeseriesData.testData, 1) 
     gen_label = TimeseriesData.testLabel
     
-    encDecAD = EncDecAD(args.ninp, args.nhid, args.ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
+    ninp = TimeseriesData.testData.size(-1)    
+
+    encDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated) 
     encDecAD.to(device)
     
     encDecAD.load_state_dict(checkpoint['state_dict']) 
-
-    criterion = torch.nn.MSELoss() 
-
 
     out_dataset, gen_score = get_anomaly_score(encDecAD, gen_dataset, mean, covariance) 
 
@@ -171,4 +172,4 @@ if __name__ == '__main__':
     pickle.dump(precision, open(str(save_folder.joinpath('precision.pkl')), 'wb'))
     pickle.dump(recall, open(str(save_folder.joinpath('recall.pkl')), 'wb')) 
     
-    print(str(save_folder), f1)
+    print(str(save_folder), best_val_loss, f1)

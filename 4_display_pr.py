@@ -23,10 +23,12 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir():
         param_names = [] 
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:0')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:0')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:0' + '_gated:1')
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_feedback:1' + '_gated:1') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:0') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:0_H:0') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0')
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:1') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1') 
 
         all_saved = True
 
