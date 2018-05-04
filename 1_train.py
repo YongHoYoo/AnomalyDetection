@@ -26,7 +26,7 @@ if __name__=='__main__':
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
    
-    parser.add_argument('--bsz', type=int, default=16)
+    parser.add_argument('--bsz', type=int, default=8)
     parser.add_argument('--seqlen', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=120)
     parser.add_argument('--lr', type=float, default=1e-3)
@@ -42,8 +42,8 @@ if __name__=='__main__':
 
     args = parser.parse_args() 
 
-#    if args.feedback:
-#        args.h_dropout+=0.1
+    if args.feedback:
+        args.h_dropout+=0.1
 
     device = torch.device('cuda') 
 

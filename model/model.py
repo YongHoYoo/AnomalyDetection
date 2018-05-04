@@ -309,6 +309,7 @@ class Decoder(nn.Module):
             outputs = torch.cat([output.unsqueeze(0), outputs], 0)
         else: 
             outputs = output.unsqueeze(0) 
+            dec_hiddens = None 
         
         return outputs, dec_hiddens
 
