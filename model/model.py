@@ -16,8 +16,10 @@ def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
 
     if G is not None: 
         gh = F.sigmoid(hx_origin.bmm(G)) 
-        gh = gh.expand_as(hx_origin) 
-        hx_origin = gh * hx_origin 
+        ghs = gh.expand_as(hx_origin) 
+        hx_origin = ghs * hx_origin 
+    else:
+        gh = None
 
     if feedback is True: 
         hx = [] 
@@ -51,9 +53,9 @@ def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
     hx_next = torch.stack(hx_next, 0) 
     cx_next = torch.stack(cx_next, 0) 
     
-    return hx_next, cx_next
+    return hx_next, cx_next, gh
 
-def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
+def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
 
     hx_origin, cx = hidden 
     W, U, G, L = weight 
@@ -62,9 +64,11 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
         hx_origin = hx_origin*mask_u
 
     if G is not None: 
-        gh = F.sigmoid(hx_origin.bmm(G)) 
-        gh = gh.expand_as(hx_origin) 
-        hx_origin = gh * hx_origin 
+#        gh = F.sigmoid(hx_origin.bmm(G)) 
+        
+#        print(gh.size(), gates.size()) 
+        gh = gates.unsqueeze(2).expand_as(hx_origin) 
+        hx_origin = hx_origin / gh
  
     if feedback is True:
         hx = [] 
@@ -80,8 +84,6 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w):
     hx_next = []
     cx_next = [] 
     
-#    input = Variable(output.data.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_())
-
     input = output.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_().requires_grad_()
     
     for i in range(hx.size(0)): 
@@ -118,12 +120,17 @@ def Recurrent(feedback, hidden_tied):
         
         enc_hidden = [] 
         enc_context = [] 
+        gates = [] 
         
         for t in range(steps): 
-            hidden = inner(input[t], hidden, weight, feedback, mask_u, mask_w) 
+            hid, context, gate = inner(input[t], hidden, weight, feedback, mask_u, mask_w) 
+            if gate is not None: 
+                gates.append(gate) 
+
             if (hidden_tied) and (mask_w) is not None and (t!=steps-1): 
-                enc_hidden.append(hidden[0]) 
-                enc_context.append(hidden[1]) 
+                enc_hidden.append(hid) 
+                enc_context.append(context) 
+            hidden = (hid, context) 
 
         if (hidden_tied) and (mask_w is not None): 
             enc_hidden = torch.stack(enc_hidden, 0)
@@ -131,8 +138,13 @@ def Recurrent(feedback, hidden_tied):
             enc_hiddens = (enc_hidden, enc_context) 
         else:
             enc_hiddens = None
-        
-        return hidden, enc_hiddens
+
+        if gate is not None: 
+            gates = torch.cat(gates, 2) 
+        else:
+            gates = None 
+
+        return hidden, enc_hiddens, gates
 
     return forward
 
@@ -141,7 +153,7 @@ def Recurrent_Decoder(feedback, hidden_tied):
     
     inner = decoder_lstm 
     
-    def forward(output, hidden, steps, linear, weight, mask_u, mask_w): 
+    def forward(output, hidden, steps, linear, weight, mask_u, mask_w, gates): 
         
         outputs = [] 
         _, _, _, L = weight
@@ -151,8 +163,11 @@ def Recurrent_Decoder(feedback, hidden_tied):
         
         for t in range(steps-1): 
             output = linear(output) 
-            output, hidden = inner(output, hidden, weight, feedback, mask_u, mask_w) 
-
+            if gates is not None: 
+                output, hidden = inner(output, hidden, weight, feedback, mask_u, mask_w, gates[:,:,steps-2-t]) 
+            else:
+                output, hidden = inner(output, hidden, weight, feedback, mask_u, mask_w, gates) 
+   
             if (hidden_tied) and (mask_w) is not None and (t!=steps-1): 
                 dec_hidden.append(hidden[0])
                 dec_context.append(hidden[1])
@@ -245,8 +260,8 @@ class Encoder(nn.Module):
         else:
             self.mask_u = None 
         
-        hidden, enc_hiddens = Recurrent(self.feedback, self.hidden_tied)(input, hidden, self.all_weights, self.mask_u, self.mask_w)
-        return hidden, enc_hiddens
+        hidden, enc_hiddens, gates = Recurrent(self.feedback, self.hidden_tied)(input, hidden, self.all_weights, self.mask_u, self.mask_w)
+        return hidden, enc_hiddens, gates
 
 class Decoder(nn.Module): 
     def __init__(self, nout, nhid, nlayers, dropout=0.2, h_dropout=0.0, feedback=False, gated=False, hidden_tied=False):
@@ -289,9 +304,10 @@ class Decoder(nn.Module):
     def all_weights(self): 
     	return [getattr(self, weight) for weight in self._all_weights] 
     
-    def forward(self, hidden, steps):
+    def forward(self, hidden, steps, gates):
         
         bsz = hidden[0].size(1) 
+
         output = F.linear(hidden[0][-1], self.l_weight) 
         
         if self.v_dropout>0 and self.training: 
@@ -305,7 +321,7 @@ class Decoder(nn.Module):
             self.mask_u = None 
         
         if steps>1: 
-            outputs, dec_hiddens = Recurrent_Decoder(self.feedback, self.hidden_tied)(output, hidden, steps, self.linear, self.all_weights, self.mask_u, self.mask_w) 
+            outputs, dec_hiddens = Recurrent_Decoder(self.feedback, self.hidden_tied)(output, hidden, steps, self.linear, self.all_weights, self.mask_u, self.mask_w, gates) 
             outputs = torch.cat([output.unsqueeze(0), outputs], 0)
         else: 
             outputs = output.unsqueeze(0) 
@@ -337,8 +353,8 @@ class EncDecAD(nn.Module):
         bsz = input.size(1) 
         emb = self.linear(input.view(-1, input.size(-1))) 
         emb = emb.view(-1, bsz, emb.size(-1)) 
-        hidden, enc_hiddens = self.encoder(emb, hidden)
-        output, dec_hiddens = self.decoder(hidden, input.size(0)) 
+        hidden, enc_hiddens, gates = self.encoder(emb, hidden)
+        output, dec_hiddens = self.decoder(hidden, input.size(0), gates) 
         
         return output, hidden, enc_hiddens, dec_hiddens
 
