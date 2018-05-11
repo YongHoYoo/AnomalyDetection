@@ -22,19 +22,15 @@ def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
         gh = None
 
     if feedback is True: 
-        
-        hx = hx_origin.sum(0) # 8 by 64
+        hx = [] 
+        for i in range(len(hx_origin)):
+            hx.append(hx_origin[i])
+    
+        hx = torch.cat(hx, 1) 
         hx = hx.repeat(len(hx_origin), 1, 1) 
 
-    #    hx = [] 
-    #    for i in range(len(hx_origin)):
-    #        hx.append(hx_origin[i])
-    #
-    #    hx = torch.cat(hx, 1) 
-    #    hx = hx.repeat(len(hx_origin), 1, 1) 
-
     else: 
-        hx = hx_origin  
+        hx = hx_origin 
 
     hx_next = []
     cx_next = [] 
@@ -75,16 +71,12 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
         hx_origin = hx_origin / gh
  
     if feedback is True:
-
-        hx = hx_origin.sum(0) # 8 by 64
+        hx = [] 
+        for i in range(len(hx_origin)):
+            hx.append(hx_origin[i])
+        
+        hx = torch.cat(hx, 1) 
         hx = hx.repeat(len(hx_origin), 1, 1) 
-
-   #     hx = [] 
-   #     for i in range(len(hx_origin)):
-   #         hx.append(hx_origin[i])
-   #     
-   #     hx = torch.cat(hx, 1) 
-   #     hx = hx.repeat(len(hx_origin), 1, 1) 
        
     else: 
         hx = hx_origin 
@@ -219,10 +211,10 @@ class Encoder(nn.Module):
         self.linear = nn.Linear(ninp, nhid) 
         
         self.w_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
-#        if feedback: 
-#        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid)) 
-#        else:
-        self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
+        if feedback: 
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid)) 
+        else:
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
         
         if gated:
             self.g_weight = Parameter(torch.empty(nlayers, nhid, 1)) 
@@ -288,10 +280,10 @@ class Decoder(nn.Module):
         self.linear = nn.Linear(nout, nhid) 
         
         self.w_weight = Parameter(torch.empty(nlayers-1, 4*nhid, nhid)) 
-#        if feedback: 
-#        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid))
-#        else:
-        self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
+        if feedback: 
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nlayers*nhid))
+        else:
+        	self.u_weight = Parameter(torch.empty(nlayers, 4*nhid, nhid)) 
 
         if gated:
             self.g_weight = Parameter(torch.empty(nlayers, nhid, 1)) 

@@ -42,8 +42,8 @@ if __name__=='__main__':
 
     args = parser.parse_args() 
 
-    if args.feedback:
-        args.h_dropout+=0.1
+#    if args.feedback:
+ #       args.h_dropout+=0.1
 
     device = torch.device('cuda') 
 
@@ -193,7 +193,7 @@ if __name__=='__main__':
                 early_stop = 0 
             else: 
                 early_stop += 1 
-                if early_stop==20: 
+                if early_stop==30: 
                     print('Validation loss %f is not updated more.'%best_val_loss)
                     print('The iteration is terminated at iteration %d.'%epoch) 
                     break 
