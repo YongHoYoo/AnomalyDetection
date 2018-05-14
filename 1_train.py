@@ -42,8 +42,8 @@ if __name__=='__main__':
 
     args = parser.parse_args() 
 
-#    if args.feedback:
- #       args.h_dropout+=0.1
+    if args.feedback:
+        args.h_dropout+=0.1
 
     device = torch.device('cuda') 
 
@@ -106,10 +106,10 @@ if __name__=='__main__':
             loss = criterion(output, target) 
 
             if enc_hiddens is not None: 
-                loss_hidden = criterion(enc_hiddens[0], dec_hiddens[0].data) 
-                loss_context = criterion(enc_hiddens[1], dec_hiddens[1].data)    
-                loss += 1e-5*loss_hidden
-                loss += 1e-5*loss_context
+                loss_hidden = criterion(enc_hiddens[0][-2:], dec_hiddens[0][-2:].data) 
+                loss_context = criterion(enc_hiddens[1][-2:], dec_hiddens[1][-2:].data)    
+                loss += 0.1*loss_hidden
+#                loss += 0.01*loss_context
             
             loss.backward() 
             
@@ -120,8 +120,8 @@ if __name__=='__main__':
             hidden = hidden[0].detach(), hidden[1].detach() 
  
         train_loss/=(nbatch+1) 
-#        print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
-#           epoch, args.seqlen, train_loss)) 
+        print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
+           epoch, args.seqlen, train_loss)) 
 
         return train_loss, hidden
 
@@ -201,11 +201,14 @@ if __name__=='__main__':
             print('| end of epoch {:3d} | time: {:5.2f}s | train loss {:5.4f} | valid loss {:5.4f} | '.format(epoch, (time.time() - start_time), train_loss, best_val_loss))
             print('-' * 89)
  
-     
+ 
+    
     except KeyboardInterrupt:
         print('-' * 89)
         print('Exiting from training early')
   
+    print('best_val', best_val_loss) 
+
     # get errors' mean & std, save model 
     mean, cov = calculate_params(bestEncDecAD, train_dataset) 
   
