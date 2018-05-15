@@ -28,7 +28,7 @@ def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
     if feedback is True: 
         hx_origin = hx_origin.transpose(0,1).contiguous() # 8 2 64 
         for i in range(nlayers): 
-            hx.append(hx_origin[:,:(i+1),:].view(nbatch, -1))
+            hx.append(hx_origin[:,i:,:].view(nbatch, -1))
     else:
         hx = hx_origin  
 
@@ -40,15 +40,12 @@ def encoder_lstm(input, hidden, weight, feedback, mask_u, mask_w):
         
         if mask_w is not None: 
         	input = input*mask_w[i]
-
-        igates = F.linear(input, W[i]) 
+        print(stidx:(stidx+nlayers-i)) 
+        u_weight = W[stidx:(stidx+nlayers-i)].transpose(0,1).contiguous() 
+        igates = F.linear(input, u_weight.view(u_weight.size(0), -1)) 
+        stidx += (nlayers) 
+        hgates = F.linear(hx[i], U[i]) 
         
-        if feedback is True: 
-            u_weight = U[stidx:(stidx+i+1)].transpose(0,1).contiguous() 
-            hgates = F.linear(hx[i], u_weight.view(u_weight.size(0), -1))
-            stidx += (i+1)
-        else:
-            hgates = F.linear(hx[i], U[i])       
         state = fusedBackend.LSTMFused.apply
 
         input, cy = state(igates, hgates, cx[i]) 
@@ -67,7 +64,9 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
     W, U, G, L = weight 
  
     nbatch = hx_origin.size(1) 
+
     nlayers = len(hx_origin)
+
     input = output.new(hx_origin[0].size(0), hx_origin[0].size(1)*4).zero_().requires_grad_()
  
    
@@ -85,25 +84,17 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
     if feedback is True: 
         hx_origin = hx_origin.transpose(0,1).contiguous() # 8 2 64 
         for i in range(nlayers): 
-            hx.append(hx_origin[:,:(i+1),:].view(nbatch, -1))
-#            hx.append(hx_origin[:,nlayers-i,:].view(nbatch,-1)) 
+            hx.append(hx_origin[:,i:,:].view(nbatch, -1))
     else:
         hx = hx_origin  
     
     hx_next = []
     cx_next = [] 
     
-    stidx = 0 
-
+   
     for i in range(nlayers):
-
-        if feedback is True: 
-            u_weight = U[stidx:(stidx+i+1)].transpose(0,1).contiguous() 
-            hgates = F.linear(hx[i], u_weight.view(u_weight.size(0), -1))
-            stidx+=(i+1) 
-        else:
-            hgates = F.linear(hx[i], U[i])       
-  
+        
+        hgates = F.linear(hx[i], U[i]) 
         if i==0: 
         	igates = input
         else:
@@ -298,13 +289,15 @@ class Decoder(nn.Module):
         self.linear = nn.Linear(nout, nhid) 
         
         self.w_weight = Parameter(torch.empty(nlayers-1, 4*nhid, nhid)) 
-       
-        all_layers = 0 
+
+        self.u_weight = [] 
+
         for i in range(nlayers):
-            all_layers += (i+1) if feedback is True else 1 
-
-        self.u_weight = Parameter(torch.empty(all_layers, 4*nhid, nhid)) 
-
+            nhids = (nlayers-i)*nhid if feedback is True else nhid 
+            u_weight = Parameter(torch.empty(4*nhid, nhids).to('cuda')) 
+            stdv = 1.0/math.sqrt(self.nhid) 
+            u_weight.data.uniform_(-stdv, stdv) 
+            self.u_weight.append(u_weight) 
 
         if gated:
             self.g_weight = Parameter(torch.empty(nlayers, nhid, 1)) 
@@ -368,8 +361,6 @@ class EncDecAD(nn.Module):
         self.linear = nn.Linear(ninp, nhid) 
         self.encoder = Encoder(nhid, nhid, nlayers, dropout=dropout, h_dropout=h_dropout, feedback=feedback, gated=gated, hidden_tied=hidden_tied)
         self.decoder = Decoder(nout, nhid, nlayers, dropout=dropout, h_dropout=h_dropout, feedback=feedback, gated=gated, hidden_tied=hidden_tied) 
-
-#        self.decoder.u_weight = self.encoder.u_weight
 
     def forward(self, input, hidden=None):
         
