@@ -27,7 +27,7 @@ if __name__=='__main__':
         help='filename of the dataset')
    
     parser.add_argument('--bsz', type=int, default=8)
-    parser.add_argument('--seqlen', type=int, default=64)
+    parser.add_argument('--seqlen', type=int, default=32)
     parser.add_argument('--epochs', type=int, default=120)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--nhid', type=int, default=64)

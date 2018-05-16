@@ -76,7 +76,6 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
 
     if G is not None: 
 #        gh = F.sigmoid(hx_origin.bmm(G)) 
-        
 #        print(gh.size(), gates.size()) 
         gh = gates.unsqueeze(2).expand_as(hx_origin) 
         hx_origin = hx_origin / gh
@@ -85,7 +84,8 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
     if feedback is True: 
         hx_origin = hx_origin.transpose(0,1).contiguous() # 8 2 64 
         for i in range(nlayers): 
-            hx.append(hx_origin[:,:(i+1),:].view(nbatch, -1))
+            hx.append(hx_origin[:,:(i+1),:].view(nbatch, -1)) # 0, 01, 012 
+#            hx.append(hx_origin[:, :(nlayers-i),:].view(nbatch, -1)) # 012 01 0
 #            hx.append(hx_origin[:,nlayers-i,:].view(nbatch,-1)) 
     else:
         hx = hx_origin  
@@ -98,9 +98,12 @@ def decoder_lstm(output, hidden, weight, feedback, mask_u, mask_w, gates):
     for i in range(nlayers):
 
         if feedback is True: 
-            u_weight = U[stidx:(stidx+i+1)].transpose(0,1).contiguous() 
+            u_weight = U[stidx:(stidx+i+1)].transpose(0,1).contiguous() # 0 12 345 
+#            u_weight = U[stidx:(stidx+nlayers-i)].transpose(0,1).contiguous() # 012 34 5
+
             hgates = F.linear(hx[i], u_weight.view(u_weight.size(0), -1))
-            stidx+=(i+1) 
+            stidx+=(i+1)   
+#            stidx+=(nlayers-i) 
         else:
             hgates = F.linear(hx[i], U[i])       
   
