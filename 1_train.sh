@@ -4,7 +4,9 @@ maxjob=6
 
 data="ecg"
 
-declare -a filenames=("chfdb_chf13_45590.pkl" "chfdb_chf01_275.pkl" "chfdbchf15.pkl" "qtdbsel102.pkl" "mitdb__100_180.pkl" "stdb_308_0.pkl" "ltstdb_20321_240.pkl" "xmitdb_x108_0.pkl" "ltstdb_20221_43.pkl" ) 
+#declare -a filenames=("chfdb_chf13_45590.pkl" "chfdb_chf01_275.pkl" "chfdbchf15.pkl" "qtdbsel102.pkl" "mitdb__100_180.pkl" "stdb_308_0.pkl" "ltstdb_20321_240.pkl" "xmitdb_x108_0.pkl" "ltstdb_20221_43.pkl" ) 
+declare -a filenames=("chfdbchf15.pkl" "qtdbsel102.pkl" "stdb_308_0.pkl" "xmitdb_x108_0.pkl") 
+
 
 for filename in "${filenames[@]}"
 do

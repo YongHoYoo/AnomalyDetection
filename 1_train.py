@@ -68,10 +68,10 @@ if __name__=='__main__':
     save_folder.mkdir(parents=True, exist_ok=True)
 
 # if there is a file 'model_dictionary.pt', exit. 
-#    if save_folder.joinpath('model_dictionary.pt').is_file(): 
-#        print('There is already trained model in ') 
-#        print(str(save_folder)) 
-#        sys.exit() 
+    if save_folder.joinpath('model_dictionary.pt').is_file(): 
+        print('There is already trained model in ') 
+        print(str(save_folder)) 
+        sys.exit() 
  
 
     criterion = torch.nn.MSELoss() 

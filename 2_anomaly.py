@@ -79,10 +79,10 @@ if __name__ == '__main__':
         print(str(save_folder)) 
         sys.exit() 
 
-#    if save_folder.joinpath('recall.pkl').is_file() is True: 
-#        print('The precision, and recall were already calculated!') 
-#        print(str(save_folder)) 
-#        sys.exit() 
+    if save_folder.joinpath('recall.pkl').is_file() is True: 
+        print('The precision, and recall were already calculated!') 
+        print(str(save_folder)) 
+        sys.exit() 
 
     def get_batch(source, seqlen, i):
         seqlen = min(seqlen, len(source)-i) 
