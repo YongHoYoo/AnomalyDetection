@@ -26,9 +26,9 @@ if __name__=='__main__':
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
    
-    parser.add_argument('--bsz', type=int, default=8)
-    parser.add_argument('--seqlen', type=int, default=32)
-    parser.add_argument('--epochs', type=int, default=120)
+    parser.add_argument('--bsz', type=int, default=8) 
+    parser.add_argument('--seqlen', type=int, default=64)
+    parser.add_argument('--epochs', type=int, default=180)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--nhid', type=int, default=64)
     parser.add_argument('--clip', type=float, default=0.25)
@@ -93,37 +93,39 @@ if __name__=='__main__':
         start_time = time.time() 
 
         hidden = None
-        train_loss = 0 
 
-        model.train()
+        all_train_loss = 0 
+        all_seqlen = [4,8,16,32,64]
+        for seqlen  in all_seqlen: 
 
-        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
-            input, target = get_batch(dataset, args.seqlen, i) 
-            noise = 1e-3*torch.randn(input.size()).to(device)
-            input_n = input + noise
-            optimizer.zero_grad() 
-            output, hidden, enc_hiddens, dec_hiddens = model(input_n.requires_grad_(), hidden) 
-            loss = criterion(output, target) 
+            train_loss = 0 
+            model.train()
 
-            if enc_hiddens is not None: 
-                loss_hidden = criterion(dec_hiddens[0][:], enc_hiddens[0][:].data) 
-                loss_context = criterion(dec_hiddens[1][-2:], enc_hiddens[1][-2:].data)    
-                loss += loss_hidden
-#                loss += 0.01*loss_context
+            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
+                input, target = get_batch(dataset, seqlen, i) 
+                noise = 1e-3*torch.randn(input.size()).to(device)
+                input_n = input + noise
+                optimizer.zero_grad() 
+                output, hidden, enc_hiddens, dec_hiddens = model(input_n.requires_grad_(), hidden) 
+                loss = criterion(output, target) 
+
+                if enc_hiddens is not None: 
+                    loss_hidden = criterion(dec_hiddens[0][:], enc_hiddens[0][:].data) 
+                    loss += loss_hidden
             
-            loss.backward() 
+                loss.backward() 
             
-            torch.nn.utils.clip_grad_norm_(encDecAD.parameters(), args.clip) 
-            train_loss += loss.item()
-            optimizer.step() 
+                torch.nn.utils.clip_grad_norm_(encDecAD.parameters(), args.clip) 
+                train_loss += loss.item()
+                optimizer.step() 
     
-            hidden = hidden[0].detach(), hidden[1].detach() 
+                hidden = hidden[0].detach(), hidden[1].detach() 
  
-        train_loss/=(nbatch+1) 
-  #      print('| epoch {:3d} | seqlen {:3d} | train loss {:5.2f}'.format(
-  #         epoch, args.seqlen, train_loss)) 
+            train_loss/=(nbatch+1) 
+            all_train_loss+=train_loss
 
-        return train_loss, hidden
+        all_train_loss/=len(all_seqlen) 
+        return all_train_loss, hidden
 
     def calculate_params(model, dataset): 
         model.eval() 
@@ -133,26 +135,36 @@ if __name__=='__main__':
         split_trainset = dataset[:int(total_length*args.split_ratio)] 
         split_validset = dataset[int(total_length*args.split_ratio):] 
 
+        all_seqlen = [4,8,16,32,64] 
+
         hidden = None 
-        errors = [] 
+        all_errors = [] 
 
-        for nbatch, i in enumerate(range(0, split_trainset.size(0), args.seqlen)):
-            input, _ = get_batch(split_trainset, args.seqlen, i) 
-            output, hidden, _, _ = model(input, hidden) 
-            hidden = hidden[0].detach(), hidden[1].detach() 
-        
-        for nbatch, i in enumerate(range(0, split_validset.size(0), args.seqlen)): 
-            input, target = get_batch(split_validset, args.seqlen, i) 
-            output, hidden, _, _ = model(input, hidden) 
+        for seqlen in all_seqlen: 
 
-            error = output-target # seqlen by batch by dim
-            errors.append(error) 
-            hidden = hidden[0].detach(), hidden[1].detach() 
+            errors = [] 
 
-        errors = torch.cat(errors, 0).view(-1, errors[0].size(-1)) # x by 2
+            for nbatch, i in enumerate(range(0, split_trainset.size(0), seqlen)):
+                input, _ = get_batch(split_trainset, seqlen, i) 
+                output, hidden, _, _ = model(input, hidden) 
+                hidden = hidden[0].detach(), hidden[1].detach() 
 
-        mean = errors.mean(0) 
-        cov = (errors.t()).mm(errors)/errors.size(0) - mean.unsqueeze(1).mm(mean.unsqueeze(1).t()) 
+
+            for nbatch, i in enumerate(range(0, split_validset.size(0), seqlen)): 
+                input, target = get_batch(split_validset, seqlen, i) 
+                output, hidden, _, _ = model(input, hidden) 
+    
+                error = output-target # seqlen by batch by dim
+                errors.append(error) 
+                hidden = hidden[0].detach(), hidden[1].detach() 
+
+            errors = torch.cat(errors, 0).view(-1, errors[0].size(-1)) # x by 2 
+            all_errors.append(errors) 
+
+        all_errors = torch.cat(all_errors, 1) # x by (2*5) 
+
+        mean = all_errors.mean(0) 
+        cov = (all_errors.t()).mm(all_errors)/all_errors.size(0) - mean.unsqueeze(1).mm(mean.unsqueeze(1).t()) 
 
         return mean, cov 
 
@@ -211,6 +223,9 @@ if __name__=='__main__':
 
     # get errors' mean & std, save model 
     mean, cov = calculate_params(bestEncDecAD, train_dataset) 
+
+    print(mean)
+    print(cov)
   
     model_dictionary = {'state_dict': bestEncDecAD.state_dict(), 
          'mean': mean,

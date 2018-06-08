@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
         subroot_path = rp.joinpath(param_name) 
 
         if subroot_path.joinpath('precision.pkl').is_file() is False:
@@ -53,9 +53,9 @@ if __name__ == '__main__':
         # original sequence 
         gen = gen.view(seqlen, -1) 
         fig = tools.make_subplots(rows=gen.size(1)+1, cols=1) 
-    
+ 
         for channel in range(gen.size(1)): 
-        
+
             normal = list(gen[:seqlen, channel])
             abnormal = list(gen[:seqlen,channel]) 
             
@@ -81,16 +81,18 @@ if __name__ == '__main__':
             
             fig.append_trace(trace_normal, channel+1, 1) 
             fig.append_trace(trace_abnormal, channel+1, 1) 
-            
-            
-            trace_out = go.Scatter(
-                x = torch.Tensor(range(1, 1+seqlen)), 
-                y = outs[:seqlen, channel].data.cpu(), 
-                mode = 'lines+markers',
-                line = dict(dash='dot'), 
-                marker=dict(size=2,),
-                ) 
-            fig.append_trace(trace_out, channel+1, 1) 
+
+
+            for k in range(5): 
+                
+                trace_out = go.Scatter(
+                    x = torch.Tensor(range(1, 1+seqlen)), 
+                    y = outs[:seqlen, channel+k*2].data.cpu(), 
+                    mode = 'lines+markers',
+                    line = dict(dash='dot'), 
+                    marker=dict(size=2,),
+                    ) 
+                fig.append_trace(trace_out, channel+1, 1) 
             
         trace_score = go.Scatter(   
             x = torch.Tensor(range(1, 1+seqlen)), 

@@ -113,32 +113,49 @@ if __name__ == '__main__':
 
         assert(dataset.size(1)==1) 
 
-        hidden = None
         model.eval() 
 
-        errors = [] 
-        outputs = [] 
+        all_seqlen = [4,8,16,32,64]
+        all_errors = [] 
+        all_outputs = [] 
 
-        for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
-            input, target = get_batch(dataset, args.seqlen, i) 
-            output, hidden, _, _ = model(input, hidden)  # input 8 1 2
-            
-            output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
-            reverse_output = output.index_select(0, output_idx) 
-            outputs.append(reverse_output) 
+        for seqlen in all_seqlen: 
+        
+            hidden = None
+            outputs = [] 
+            errors = [] 
 
-            error = output-target 
-            reverse_error = error.index_select(0, output_idx) 
-            errors.append(reverse_error) 
+            for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
+                input, target = get_batch(dataset, seqlen, i) 
+                output, hidden, _, _ = model(input, hidden)  # input 8 1 2
+                
+                output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
+                reverse_output = output.index_select(0, output_idx) 
+                outputs.append(reverse_output) 
+    
+                error = output-target 
+                reverse_error = error.index_select(0, output_idx) 
+                errors.append(reverse_error) 
 
-        outputs = torch.cat(outputs, 0).view(-1,dataset.size(-1))
-        errors = torch.cat(errors, 0).view(-1, dataset.size(-1))
+            outputs = torch.cat(outputs, 0).view(-1,dataset.size(-1))
+            errors = torch.cat(errors, 0).view(-1, dataset.size(-1))
 
-        xm = (errors - mean)
-        score = (xm).mm(cov.inverse())*xm
+            print(outputs)
+#            print(outputs.size(), errors.size())
+#            assert(False)
+
+            all_errors.append(errors)
+            all_outputs.append(outputs) 
+
+        all_errors = torch.cat(all_errors, 1) 
+        all_outputs = torch.cat(all_outputs, 1) 
+
+        xm = (all_errors - mean)
+        cov_eps = cov + 1e-5*torch.eye(cov.size(0)).to('cuda')
+        score = (xm).mm(cov_eps.inverse())*xm
         score = score.sum(1) 
 
-        return outputs, score
+        return all_outputs, score
  
     # save   
     checkpoint = torch.load(str(save_folder.joinpath('model_dictionary.pt')))
@@ -159,6 +176,8 @@ if __name__ == '__main__':
     encDecAD.load_state_dict(checkpoint['state_dict']) 
 
     out_dataset, gen_score = get_anomaly_score(encDecAD, gen_dataset, mean, covariance) 
+
+    print(out_dataset)
 
     pickle.dump(gen_dataset, open(str(save_folder.joinpath('gen_dataset.pkl')), 'wb')) 
     pickle.dump(out_dataset, open(str(save_folder.joinpath('out_dataset.pkl')), 'wb'))
