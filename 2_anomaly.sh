@@ -1,7 +1,7 @@
 #!/bin/bash
 
 data="ecg"
-declare -a filenames=("chfdbchf15.pkl" "qtdbsel102.pkl" "stdb_308_0.pkl" "xmitdb_x108_0.pkl") 
+declare -a filenames=("chfdbchf15.pkl" "qtdbsel102.pkl" "stdb_308_0.pkl" ) 
 
 for filename in "${filenames[@]}"
 do

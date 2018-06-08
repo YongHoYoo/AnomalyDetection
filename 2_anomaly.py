@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
         model.eval() 
 
-        all_seqlen = [4,8,16,32,64]
+        all_seqlen = [4,8,16,32]
         all_errors = [] 
         all_outputs = [] 
 
@@ -128,7 +128,8 @@ if __name__ == '__main__':
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
                 input, target = get_batch(dataset, seqlen, i) 
                 output, hidden, _, _ = model(input, hidden)  # input 8 1 2
-                
+                hidden = hidden[0].detach(), hidden[1].detach() 
+               
                 output_idx = torch.arange(output.size(0)-1, -1, -1).to(device).long() 
                 reverse_output = output.index_select(0, output_idx) 
                 outputs.append(reverse_output) 
@@ -137,10 +138,9 @@ if __name__ == '__main__':
                 reverse_error = error.index_select(0, output_idx) 
                 errors.append(reverse_error) 
 
+
             outputs = torch.cat(outputs, 0).view(-1,dataset.size(-1))
             errors = torch.cat(errors, 0).view(-1, dataset.size(-1))
-
-            print(outputs)
 #            print(outputs.size(), errors.size())
 #            assert(False)
 
@@ -150,8 +150,8 @@ if __name__ == '__main__':
         all_errors = torch.cat(all_errors, 1) 
         all_outputs = torch.cat(all_outputs, 1) 
 
-        xm = (all_errors - mean)
-        cov_eps = cov + 1e-5*torch.eye(cov.size(0)).to('cuda')
+        xm = (all_errors - mean[:-2])
+        cov_eps = cov[:-2, :-2]+ 1e-5*torch.eye(cov.size(0)-2).to('cuda')
         score = (xm).mm(cov_eps.inverse())*xm
         score = score.sum(1) 
 
