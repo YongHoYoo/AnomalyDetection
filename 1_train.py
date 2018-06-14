@@ -17,24 +17,24 @@ import random
 if __name__=='__main__': 
 	
     parser = argparse.ArgumentParser(description='Argument Parser') 
-    parser.add_argument('--data', type=str, default='ecg', 
+    parser.add_argument('--data', type=str, default='power_demand', 
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
 #    parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
  #       help='filename of the dataset')
  
-    parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
+    parser.add_argument('--filename', type=str, default='power_data.pkl',
         help='filename of the dataset')
    
-    parser.add_argument('--bsz', type=int, default=8) 
+    parser.add_argument('--bsz', type=int, default=8)  
     parser.add_argument('--seqlen', type=int, default=64)
     parser.add_argument('--epochs', type=int, default=180)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--nhid', type=int, default=64)
-    parser.add_argument('--clip', type=float, default=0.25)
+    parser.add_argument('--clip', type=float, default=0.25) 
     parser.add_argument('--nlayers', type=int, default=2) 
     parser.add_argument('--dropout', type=float, default=0.3) 
-    parser.add_argument('--h_dropout', type=float, default=0.3) 
+    parser.add_argument('--h_dropout', type=float, default=0.3)
     parser.add_argument('--feedback', action='store_true') 
     parser.add_argument('--gated', action='store_true') 
     parser.add_argument('--hidden_tied', action='store_true') 
@@ -43,7 +43,7 @@ if __name__=='__main__':
     args = parser.parse_args() 
 
     if args.feedback:
-        args.h_dropout+=0.1
+        args.h_dropout+=0.05
 
     device = torch.device('cuda') 
 
@@ -68,14 +68,14 @@ if __name__=='__main__':
     save_folder.mkdir(parents=True, exist_ok=True)
 
 # if there is a file 'model_dictionary.pt', exit. 
-    if save_folder.joinpath('model_dictionary.pt').is_file(): 
-        print('There is already trained model in ') 
-        print(str(save_folder)) 
-        sys.exit() 
+#    if save_folder.joinpath('model_dictionary.pt').is_file(): 
+#        print('There is already trained model in ') 
+#        print(str(save_folder)) 
+#        sys.exit() 
  
 
     criterion = torch.nn.MSELoss() 
-    optimizer = optim.Adam(encDecAD.parameters(), lr=args.lr, weight_decay=1e-5)
+    optimizer = optim.Adam(encDecAD.parameters(), lr=args.lr, weight_decay=1e-5) 
     best_val_loss = None 
     early_stop = 0 
 
@@ -95,7 +95,7 @@ if __name__=='__main__':
         hidden = None
 
         all_train_loss = 0 
-        all_seqlen = [4,8,16,32,64]
+        all_seqlen = [16,32,64,128,256]
         for seqlen  in all_seqlen: 
 
             train_loss = 0 
@@ -135,13 +135,12 @@ if __name__=='__main__':
         split_trainset = dataset[:int(total_length*args.split_ratio)] 
         split_validset = dataset[int(total_length*args.split_ratio):] 
 
-        all_seqlen = [4,8,16,32,64] 
-
-        hidden = None 
+        all_seqlen= [64]
         all_errors = [] 
 
         for seqlen in all_seqlen: 
 
+            hidden = None 
             errors = [] 
 
             for nbatch, i in enumerate(range(0, split_trainset.size(0), seqlen)):
@@ -205,10 +204,10 @@ if __name__=='__main__':
                 early_stop = 0 
             else: 
                 early_stop += 1 
-                if early_stop==30: 
-                    print('Validation loss %f is not updated more.'%best_val_loss)
-                    print('The iteration is terminated at iteration %d.'%epoch) 
-                    break 
+             #   if early_stop==50:  
+              #      print('Validation loss %f is not updated more.'%best_val_loss)
+               #     print('The iteration is terminated at iteration %d.'%epoch) 
+                #    break 
   
             print('| end of epoch {:3d} | time: {:5.2f}s | train loss {:5.4f} | valid loss {:5.4f} | '.format(epoch, (time.time() - start_time), train_loss, best_val_loss))
             print('-' * 89)

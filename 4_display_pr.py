@@ -24,9 +24,9 @@ if __name__ == '__main__':
     for rp in root_path.iterdir():
         param_names = [] 
         param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:0') 
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:0_H:0') 
-        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0')
         param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0') 
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0')
+        param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1') 
         param_names.append('nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1') 
 
         all_saved = True
@@ -44,6 +44,8 @@ if __name__ == '__main__':
         trace_prs = [] 
         f_0_1 = []
         f_1_0 = []        
+        valid = [] 
+        auc = [] 
 
         for param_name in param_names: 
             
@@ -51,11 +53,21 @@ if __name__ == '__main__':
             precision = pickle.load(open(str(subroot_path.joinpath('precision.pkl')), 'rb'))
             recall = pickle.load(open(str(subroot_path.joinpath('recall.pkl')), 'rb')) 
 
+            recall_shift = recall.clone()
+            recall_shift[1:] = recall[:-1] 
+            recall_space = recall_shift - recall 
+
+            auc.append((precision*recall_space).sum().item())
+            
+            checkpoint = torch.load(str(subroot_path.joinpath('model_dictionary.pt')))
+            best_val_loss = checkpoint['best_loss'] 
+
             def f_score(beta=1.0):
                 return (1+beta**2)*torch.max((precision*recall).div(beta**2*precision+recall+1e-7)) 
         
             f_0_1.append(f_score(0.1))
             f_1_0.append(f_score(1.0)) 
+            valid.append(best_val_loss) 
         
             # precision-recall 
             trace_pr = go.Scatter( 
@@ -63,23 +75,23 @@ if __name__ == '__main__':
                 y = precision, 
                 mode = 'lines', 
                 line = dict(shape='spline'), 
-                name = str(subroot_path), 
+                name = str(subroot_path).split('/')[-1],
                 )
 
             trace_prs.append(trace_pr) 
 
         plotly.offline.plot({
                 'data': trace_prs, 
-                'layout': go.Layout(title=str(rp), plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
-        
+                'layout': go.Layout(title=str(rp), xaxis=dict(title='Recall'), yaxis=dict(title='Precision')),
+# , plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
                 }, filename=str(rp.joinpath('.html')))
 
         # table 
-        f_score = [param_names, f_0_1, f_1_0]
+        f_score = [param_names, valid, auc, f_0_1, f_1_0]
     
         trace_table = go.Table(
             name=str(rp),
-            header=dict(values=['filename', 'beta 0.1', 'beta 1.0'], 
+            header=dict(values=['filename', 'valid', 'auc', 'beta 0.1', 'beta 1.0'], 
                 line = dict(color='#7D7F80'), 
                 fill = dict(color='#a1c3d1'), 
                 align = ['left']*5), 
@@ -94,51 +106,3 @@ if __name__ == '__main__':
         
 
 
-
-#    filename = 'chfdb_chf13_45590.pkl' 
-#    filename = 'chfdb_chf01_275.pkl'
-#    filename = 'mitdb__100_180.pkl' 
-#
-#    nlayers = #    nhid=64
-#    feedback = 1
-#    gated = 1
-#
-#    param_names = [] 
-#
-#    f_0_1 = [] # beta 0.1
-#    f_1_0 = [] # beta 1.0 
-#
-#
-#    for param_name in param_names: 
-#        save_folder = Path('result', data, filename, param_name) 
-#        
-#        precision = pickle.load(open(str(save_folder.joinpath('precision.pkl')), 'rb')) 
-#        recall = pickle.load(open(str(save_folder.joinpath('recall.pkl')), 'rb')) 
-#
-#        beta = 0.1
-#
-#        def f_score(beta=1.0):
-#            return (1+beta**2)*torch.max((precision*recall).div(beta**2*precision+recall+1e-7)) 
-#        
-#        f_0_1.append(f_score(0.1))
-#        f_1_0.append(f_score(1.0)) 
-#        
-#        # precision-recall 
-#        trace_pr = go.Scatter( 
-#            x = recall, 
-#            y = precision, 
-#            mode = 'lines+markers', 
-#            name = param_name, 
-#            )
-#
-#        trace_prs.append(trace_pr) 
-#
-#    plotly.offline.plot({
-#            'data': trace_prs, 
-#            'layout': go.Layout(title='prcurve', plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
-#        
-#            }, filename='prcurve.html')
-#
-#
-#           
-#

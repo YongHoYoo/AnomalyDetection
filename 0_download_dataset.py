@@ -66,16 +66,16 @@ for dataname in urls:
                     tokens.append(1.0) if 2070 < i < 2810 else tokens.append(0.0)
                 elif filepath.name == 'TEK16.txt':
                     tokens.append(1.0) if 4270 < i < 4370 else tokens.append(0.0)
-                elif filepath.name == 'TEK17.txt':
-                    tokens.append(1.0) if 2100 < i < 2145 else tokens.append(0.0)
-                elif filepath.name == 'TEK14.txt':
-                    tokens.append(1.0) if 1100 < i < 1200 or 1455 < i < 1955 else tokens.append(0.0)
+                elif filepath.name == 'TEK17.txt': 
+                    tokens.append(1.0) if 368< i < 372 or 1386 < i < 1390 or 2100 < i < 2145 else tokens.append(0.0)
+                elif filepath.name == 'TEK14.txt':  
+                    tokens.append(1.0) if 366 < i < 371 or 1100 < i < 1200 or 1455 < i < 1955 else tokens.append(0.0)
                 elif filepath.name == 'nprs44.txt':
                     tokens.append(1.0) if 16192 < i < 16638 or 20457 < i < 20911 else tokens.append(0.0)
                 elif filepath.name == 'nprs43.txt':
                     tokens.append(1.0) if 12929 < i < 13432 or 14877 < i < 15086 or 15729 < i < 15924 else tokens.append(0.0)
                 elif filepath.name == 'power_data.txt':
-                    tokens.append(1.0) if 8254 < i < 8998 or 11348 < i < 12143 or 33883 < i < 34601 else tokens.append(0.0)
+                    tokens.append(1.0) if 8271<i<8317 or 8532<i<8605 or 11438<i<11500 or 11938<i<11983 or 12211<i<12272 or 13266<i<13319 or 26516<i<26578 or 34425<i<24471 or 34511<i<24580 else tokens.append(0.0)
                 labeled_data.append(tokens)
 
             # Filled in the point where there is no signal value.
@@ -143,9 +143,9 @@ for dataname in urls:
                     pickle.dump(labeled_data[0:1121], pkl)
             elif filepath.name == 'ann_gun_CentroidA.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                    pickle.dump(labeled_data[3000:], pkl)
+                    pickle.dump(labeled_data[2800:], pkl)
                 with open(str(labeled_test_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                    pickle.dump(labeled_data[:3000], pkl)
+                    pickle.dump(labeled_data[:2800], pkl)
             elif filepath.name == 'nprs44.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
                     pickle.dump(labeled_data[363:12955], pkl)
@@ -158,14 +158,16 @@ for dataname in urls:
                     pickle.dump(labeled_data[10498:17909], pkl)
             elif filepath.name == 'power_data.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                    pickle.dump(labeled_data[15287:33432], pkl)
+                     pickle.dump(labeled_data[13895:26499], pkl) 
+#                    pickle.dump(labeled_data[15287:8:33432], pkl)
                 with open(str(labeled_test_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                    pickle.dump(labeled_data[501:15287], pkl)
+                     pickle.dump(labeled_data[:13830], pkl) 
+#                    pickle.dump(labeled_data[501:8:15287], pkl)
             elif filepath.name == 'TEK17.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
                     pickle.dump(labeled_data[2469:4588], pkl)
                 with open(str(labeled_test_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                    pickle.dump(labeled_data[1543:2469], pkl)
+                    pickle.dump(labeled_data[:2469], pkl)
             elif filepath.name == 'TEK16.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
                     pickle.dump(labeled_data[521:3588], pkl)

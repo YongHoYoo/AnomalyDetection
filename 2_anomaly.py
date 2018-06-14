@@ -13,6 +13,7 @@ def get_precision_recall(score, label, sz, beta=1.0, wsz=1):
     # interval, max, ...
     maximum = score.max().item()
     th = torch.linspace(0, maximum, sz) 
+
     
     precision = []
     recall = [] 
@@ -46,14 +47,14 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='ecg', 
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
-    parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
+#    parser.add_argument('--filename', type=str, default='power_data.pkl', 
+#        help='filename of the dataset')
+
+    parser.add_argument('--filename', type=str, default='xmitdb_x108_0.pkl', 
         help='filename of the dataset')
 
-  #  parser.add_argument('--filename', type=str, default='xmitdb_x108_0.pkl', 
-   #     help='filename of the dataset')
 
-
-    parser.add_argument('--seqlen', type=int, default=32)
+    parser.add_argument('--seqlen', type=int, default=32) 
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--nhid', type=int, default=64)
@@ -79,10 +80,10 @@ if __name__ == '__main__':
         print(str(save_folder)) 
         sys.exit() 
 
-    if save_folder.joinpath('recall.pkl').is_file() is True: 
-        print('The precision, and recall were already calculated!') 
-        print(str(save_folder)) 
-        sys.exit() 
+#    if save_folder.joinpath('recall.pkl').is_file() is True: 
+#        print('The precision, and recall were already calculated!') 
+#        print(str(save_folder)) 
+#        sys.exit() 
 
     def get_batch(source, seqlen, i):
         seqlen = min(seqlen, len(source)-i) 
@@ -115,7 +116,7 @@ if __name__ == '__main__':
 
         model.eval() 
 
-        all_seqlen = [4,8,16,32]
+        all_seqlen = [64]
         all_errors = [] 
         all_outputs = [] 
 
@@ -150,8 +151,8 @@ if __name__ == '__main__':
         all_errors = torch.cat(all_errors, 1) 
         all_outputs = torch.cat(all_outputs, 1) 
 
-        xm = (all_errors - mean[:-2])
-        cov_eps = cov[:-2, :-2]+ 1e-5*torch.eye(cov.size(0)-2).to('cuda')
+        xm = (all_errors - mean)
+        cov_eps = cov+ 1e-5*torch.eye(cov.size(0)).to('cuda')
         score = (xm).mm(cov_eps.inverse())*xm
         score = score.sum(1) 
 
@@ -176,8 +177,6 @@ if __name__ == '__main__':
     encDecAD.load_state_dict(checkpoint['state_dict']) 
 
     out_dataset, gen_score = get_anomaly_score(encDecAD, gen_dataset, mean, covariance) 
-
-    print(out_dataset)
 
     pickle.dump(gen_dataset, open(str(save_folder.joinpath('gen_dataset.pkl')), 'wb')) 
     pickle.dump(out_dataset, open(str(save_folder.joinpath('out_dataset.pkl')), 'wb'))

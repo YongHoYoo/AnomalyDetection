@@ -49,6 +49,7 @@ class PickleDataLoad(object):
 
         with open(str(path), 'rb') as f:
             data = torch.FloatTensor(pickle.load(f))
+            print(data.size())
             label = data[:,-1]
             data = data[:,:-1]
         if train:
