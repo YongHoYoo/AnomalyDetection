@@ -17,14 +17,14 @@ import random
 if __name__=='__main__': 
 	
     parser = argparse.ArgumentParser(description='Argument Parser') 
-    parser.add_argument('--data', type=str, default='power_demand', 
+    parser.add_argument('--data', type=str, default='ecg',
         help='type of the dataset (ecg, gesture, power_demand, space_shuttle, respiration, nyc_taxi')
     
-#    parser.add_argument('--filename', type=str, default='qtdbsel102.pkl', 
- #       help='filename of the dataset')
- 
-    parser.add_argument('--filename', type=str, default='power_data.pkl',
+    parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
+ 
+#    parser.add_argument('--filename', type=str, default='power_data.pkl',
+#        help='filename of the dataset')
    
     parser.add_argument('--bsz', type=int, default=8)  
     parser.add_argument('--seqlen', type=int, default=64)
@@ -54,6 +54,8 @@ if __name__=='__main__':
     train_dataset = TimeseriesData.batchify(TimeseriesData.trainData, args.bsz) 
     test_dataset = TimeseriesData.batchify(TimeseriesData.testData, args.bsz) 
     gen_dataset = TimeseriesData.batchify(TimeseriesData.testData, 1) 
+
+    valid_errs = [] 
 
     encDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated, hidden_tied=args.hidden_tied) 
     bestEncDecAD = EncDecAD(ninp, args.nhid, ninp, args.nlayers, dropout=args.dropout, h_dropout=args.h_dropout, feedback=args.feedback, gated=args.gated, hidden_tied=args.hidden_tied) 
@@ -197,6 +199,8 @@ if __name__=='__main__':
   
             train_loss, last_hidden = train(encDecAD, split_trainset) 
             valid_loss = evaluate(encDecAD, split_validset, last_hidden) 
+
+            valid_errs.append(valid_loss) 
   
             if best_val_loss is None or best_val_loss>valid_loss: 
                 best_val_loss = valid_loss 
@@ -222,9 +226,6 @@ if __name__=='__main__':
 
     # get errors' mean & std, save model 
     mean, cov = calculate_params(bestEncDecAD, train_dataset) 
-
-    print(mean)
-    print(cov)
   
     model_dictionary = {'state_dict': bestEncDecAD.state_dict(), 
          'mean': mean,
@@ -236,3 +237,4 @@ if __name__=='__main__':
     torch.save(model_dictionary, str(save_folder.joinpath('model_dictionary.pt')))
     print('The model is saved in ' + str(save_folder))
 
+    pickle.dump(valid_errs, open('valid_err.pt','wb')) 

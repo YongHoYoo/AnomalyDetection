@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
-#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:0' 
+#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:0' 
 
         subroot_path = rp.joinpath(param_name) 
 
@@ -111,6 +111,6 @@ if __name__ == '__main__':
         
         fig.append_trace(trace_score, gen.size(1)+1, 1) 
         
-        fig['layout'].update(title=str(subroot_path)) # , plot_bgcolor='rgb(239,239,239)') 
+        fig['layout'].update(title=str(subroot_path), xaxis = go.XAxis(gridcolor='rgb(255,255,255)'))# xaxis = go.XAxis(), yaxis=go.YAxis()) # , plot_bgcolor='rgb(239,239,239)') 
         plotly.offline.plot(fig, filename=str(subroot_path.joinpath('result.html'))) 
         

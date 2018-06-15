@@ -158,10 +158,10 @@ for dataname in urls:
                     pickle.dump(labeled_data[10498:17909], pkl)
             elif filepath.name == 'power_data.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                     pickle.dump(labeled_data[13895:26499], pkl) 
+                     pickle.dump(labeled_data[13895:26499:8], pkl) 
 #                    pickle.dump(labeled_data[15287:8:33432], pkl)
                 with open(str(labeled_test_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:
-                     pickle.dump(labeled_data[:13830], pkl) 
+                     pickle.dump(labeled_data[:13830:8], pkl) 
 #                    pickle.dump(labeled_data[501:8:15287], pkl)
             elif filepath.name == 'TEK17.txt':
                 with open(str(labeled_train_dir.joinpath(filepath.name).with_suffix('.pkl')), 'wb') as pkl:

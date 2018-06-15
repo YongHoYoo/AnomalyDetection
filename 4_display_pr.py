@@ -84,7 +84,7 @@ if __name__ == '__main__':
                 'data': trace_prs, 
                 'layout': go.Layout(title=str(rp), xaxis=dict(title='Recall'), yaxis=dict(title='Precision')),
 # , plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
-                }, filename=str(rp.joinpath('.html')))
+                }, filename=str(rp.joinpath('pr.html')))
 
         # table 
         f_score = [param_names, valid, auc, f_0_1, f_1_0]

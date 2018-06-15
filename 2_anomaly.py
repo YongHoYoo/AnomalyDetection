@@ -116,7 +116,7 @@ if __name__ == '__main__':
 
         model.eval() 
 
-        all_seqlen = [64]
+        all_seqlen = [168]
         all_errors = [] 
         all_outputs = [] 
 
