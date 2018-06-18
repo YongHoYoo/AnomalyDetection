@@ -11,7 +11,7 @@ from plotly import tools
 
 if __name__ == '__main__': 
 
-    filenames = ['valid_err_000.pt', 'valid_err_010.pt', 'valid_err_110.pt'] 
+    filenames = ['valid_err_000.pt', 'valid_err_010.pt', 'valid_err_110.pt', 'valid_err_001.pt', 'valid_err_111.pt'] 
 
     trace_all = []
     for filename in filenames: 
@@ -27,6 +27,6 @@ if __name__ == '__main__':
 
     plotly.offline.plot({
         'data': trace_all, 
-        'layout': go.Layout(title='abc')}, filename='valid_error.html') 
+        'layout': go.Layout(title='abc',xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))}, filename='valid_error.html') 
 
         

@@ -82,8 +82,7 @@ if __name__ == '__main__':
 
         plotly.offline.plot({
                 'data': trace_prs, 
-                'layout': go.Layout(title=str(rp), xaxis=dict(title='Recall'), yaxis=dict(title='Precision')),
-# , plot_bgcolor='rgb(239,239,239)', xaxis = go.XAxis(gridcolor='rgb(255,255,255)'), yaxis = go.YAxis(gridcolor='rgb(255,255,255)')), 
+                'layout': go.Layout(title=str(rp), xaxis=dict(title='Recall',showgrid=False), yaxis=dict(title='Precision',showgrid=False)),
                 }, filename=str(rp.joinpath('pr.html')))
 
         # table 

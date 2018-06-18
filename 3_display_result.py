@@ -29,9 +29,16 @@ if __name__ == '__main__':
     root_path = Path('result', args.data)
 
     for rp in root_path.iterdir(): 
-        
-#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
-        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:0' 
+        temp = str(rp).split('/')[-1].split('.')[0]
+#        if temp=='TEK14': 
+#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
+#        elif temp=='TEK16':
+#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0'
+#        else:
+#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
+
+        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
+#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0' 
 
         subroot_path = rp.joinpath(param_name) 
 
@@ -89,7 +96,6 @@ if __name__ == '__main__':
             fig.append_trace(trace_normal, channel+1, 1) 
             fig.append_trace(trace_abnormal, channel+1, 1) 
 
-
             for k in range(1): 
                 
                 trace_out = go.Scatter(
@@ -111,6 +117,15 @@ if __name__ == '__main__':
         
         fig.append_trace(trace_score, gen.size(1)+1, 1) 
         
-        fig['layout'].update(title=str(subroot_path), xaxis = go.XAxis(gridcolor='rgb(255,255,255)'))# xaxis = go.XAxis(), yaxis=go.YAxis()) # , plot_bgcolor='rgb(239,239,239)') 
+        fig['layout']['xaxis1'].update(title=str(subroot_path), showgrid=False)#
+        fig['layout']['xaxis2'].update(showgrid=False)#
+#        fig['layout']['xaxis3'].update(showgrid=False)
+
+        fig['layout']['yaxis1'].update(title=str(subroot_path), showgrid=False)#
+        fig['layout']['yaxis2'].update(showgrid=False)#
+#        fig['layout']['yaxis3'].update(showgrid=False)#
+
+
+
         plotly.offline.plot(fig, filename=str(subroot_path.joinpath('result.html'))) 
         

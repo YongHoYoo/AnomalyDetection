@@ -116,17 +116,18 @@ if __name__ == '__main__':
 
         model.eval() 
 
-        all_seqlen = [168]
+        all_seqlen = [84]
         all_errors = [] 
         all_outputs = [] 
 
         for seqlen in all_seqlen: 
         
-            hidden = None
             outputs = [] 
             errors = [] 
+            hidden = None
 
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
+
                 input, target = get_batch(dataset, seqlen, i) 
                 output, hidden, _, _ = model(input, hidden)  # input 8 1 2
                 hidden = hidden[0].detach(), hidden[1].detach() 

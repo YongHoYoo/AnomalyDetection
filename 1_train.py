@@ -27,7 +27,7 @@ if __name__=='__main__':
 #        help='filename of the dataset')
    
     parser.add_argument('--bsz', type=int, default=8)  
-    parser.add_argument('--seqlen', type=int, default=64)
+    parser.add_argument('--seqlen', type=int, default=84)
     parser.add_argument('--epochs', type=int, default=180)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--nhid', type=int, default=64)
@@ -94,14 +94,15 @@ if __name__=='__main__':
 
         start_time = time.time() 
 
-        hidden = None
 
         all_train_loss = 0 
-        all_seqlen = [16,32,64,128,256]
+        all_seqlen = [21,42,84,168,336]
+
         for seqlen  in all_seqlen: 
 
             train_loss = 0 
             model.train()
+            hidden = None
 
             for nbatch, i in enumerate(range(0, dataset.size(0), seqlen)):
                 input, target = get_batch(dataset, seqlen, i) 
@@ -137,7 +138,7 @@ if __name__=='__main__':
         split_trainset = dataset[:int(total_length*args.split_ratio)] 
         split_validset = dataset[int(total_length*args.split_ratio):] 
 
-        all_seqlen= [64]
+        all_seqlen= [84]
         all_errors = [] 
 
         for seqlen in all_seqlen: 
@@ -149,7 +150,6 @@ if __name__=='__main__':
                 input, _ = get_batch(split_trainset, seqlen, i) 
                 output, hidden, _, _ = model(input, hidden) 
                 hidden = hidden[0].detach(), hidden[1].detach() 
-
 
             for nbatch, i in enumerate(range(0, split_validset.size(0), seqlen)): 
                 input, target = get_batch(split_validset, seqlen, i) 
@@ -175,7 +175,8 @@ if __name__=='__main__':
         start_time = time.time() 
         
         valid_loss = 0 
-  
+ 
+#        hidden = None  
         hidden = (last_hidden[0].detach(), last_hidden[1].detach()) if last_hidden is not None else None
   
         for nbatch, i in enumerate(range(0, dataset.size(0), args.seqlen)):
@@ -200,8 +201,6 @@ if __name__=='__main__':
             train_loss, last_hidden = train(encDecAD, split_trainset) 
             valid_loss = evaluate(encDecAD, split_validset, last_hidden) 
 
-            valid_errs.append(valid_loss) 
-  
             if best_val_loss is None or best_val_loss>valid_loss: 
                 best_val_loss = valid_loss 
                 bestEncDecAD.load_state_dict(copy.deepcopy(encDecAD.state_dict()))
@@ -212,6 +211,8 @@ if __name__=='__main__':
               #      print('Validation loss %f is not updated more.'%best_val_loss)
                #     print('The iteration is terminated at iteration %d.'%epoch) 
                 #    break 
+
+            valid_errs.append(best_val_loss) 
   
             print('| end of epoch {:3d} | time: {:5.2f}s | train loss {:5.4f} | valid loss {:5.4f} | '.format(epoch, (time.time() - start_time), train_loss, best_val_loss))
             print('-' * 89)
