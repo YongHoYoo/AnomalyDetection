@@ -73,7 +73,8 @@ if __name__ == '__main__':
             trace_pr = go.Scatter( 
                 x = recall, 
                 y = precision, 
-                mode = 'lines', 
+                mode = 'lines+markers', 
+                marker = dict(size=5), 
                 line = dict(shape='spline'), 
                 name = str(subroot_path).split('/')[-1],
                 )
@@ -82,7 +83,7 @@ if __name__ == '__main__':
 
         plotly.offline.plot({
                 'data': trace_prs, 
-                'layout': go.Layout(title=str(rp), xaxis=dict(title='Recall',showgrid=False), yaxis=dict(title='Precision',showgrid=False)),
+                'layout': go.Layout(title=str(rp), xaxis=dict(range=[0,1]), yaxis=dict(range=[0,1])),#, xaxis=dict(title='Recall',showgrid=False), yaxis=dict(title='Precision',showgrid=False)),
                 }, filename=str(rp.joinpath('pr.html')))
 
         # table 

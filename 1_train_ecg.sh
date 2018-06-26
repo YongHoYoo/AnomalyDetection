@@ -8,7 +8,9 @@ data="ecg"
 
 #declare -a filenames=("mitdb__100_180.pkl" "stdb_308_0.pkl" "ltstdb_20321_240.pkl" "ltstdb_20221_43.pkl" ) 
 
-declare -a filenames=("ltstdb_20321_240.pkl" "chfdbchf15.pkl" )
+#declare -a filenames=("ltstdb_20321_240.pkl" "chfdbchf15.pkl" )
+
+declare -a filenames=("chfdb_chf13_45590.pkl" )
 
 
 for filename in "${filenames[@]}"

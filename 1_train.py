@@ -23,8 +23,8 @@ if __name__=='__main__':
     parser.add_argument('--filename', type=str, default='chfdb_chf13_45590.pkl', 
         help='filename of the dataset')
  
-#    parser.add_argument('--filename', type=str, default='power_data.pkl',
-#        help='filename of the dataset')
+ #   parser.add_argument('--filename', type=str, default='power_data.pkl',
+  #      help='filename of the dataset')
    
     parser.add_argument('--bsz', type=int, default=8)  
     parser.add_argument('--seqlen', type=int, default=84)
@@ -97,6 +97,7 @@ if __name__=='__main__':
 
         all_train_loss = 0 
         all_seqlen = [21,42,84,168,336]
+#        all_seqlen = [16,32,64,128,256]
 
         for seqlen  in all_seqlen: 
 
@@ -236,6 +237,9 @@ if __name__=='__main__':
          }    
              
     torch.save(model_dictionary, str(save_folder.joinpath('model_dictionary.pt')))
-    print('The model is saved in ' + str(save_folder))
 
-    pickle.dump(valid_errs, open('valid_err.pt','wb')) 
+    add = args.data + '_' + ('1' if args.feedback else '0') + ('1' if args.gated else '0') + ('1' if args.hidden_tied else '0') 
+
+    print('The model is saved in ' + str(save_folder))
+    
+    pickle.dump(valid_errs, open('valid_err_' + add +'.pt','wb')) 

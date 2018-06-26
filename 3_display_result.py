@@ -30,15 +30,15 @@ if __name__ == '__main__':
 
     for rp in root_path.iterdir(): 
         temp = str(rp).split('/')[-1].split('.')[0]
-#        if temp=='TEK14': 
-#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
-#        elif temp=='TEK16':
-#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0'
-#        else:
-#            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
+        if temp=='TEK14': 
+            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
+        elif temp=='TEK16':
+            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:1_H:0'
+        else:
+            param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:1' 
 
+#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
         param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:0_G:0_H:1' 
-#        param_name = 'nlayers:%d'%args.nlayers + '_nhid:%d'%args.nhid + '_F:1_G:1_H:0' 
 
         subroot_path = rp.joinpath(param_name) 
 
@@ -54,8 +54,15 @@ if __name__ == '__main__':
         
         precision = pickle.load(open(str(subroot_path.joinpath('precision.pkl')), 'rb')) 
         recall = pickle.load(open(str(subroot_path.joinpath('recall.pkl')), 'rb')) 
-        
+
+        gen = gen[1085:]
+        outs = outs[1085:]
+        scores = scores[1085:] 
+        labels = labels[1085:]
+
         seqlen = gen.size(0)
+        print(seqlen)
+
         
         # original sequence 
         gen = gen.view(seqlen, -1) 
@@ -117,14 +124,9 @@ if __name__ == '__main__':
         
         fig.append_trace(trace_score, gen.size(1)+1, 1) 
         
-        fig['layout']['xaxis1'].update(title=str(subroot_path), showgrid=False)#
-        fig['layout']['xaxis2'].update(showgrid=False)#
-#        fig['layout']['xaxis3'].update(showgrid=False)
-
-        fig['layout']['yaxis1'].update(title=str(subroot_path), showgrid=False)#
-        fig['layout']['yaxis2'].update(showgrid=False)#
-#        fig['layout']['yaxis3'].update(showgrid=False)#
-
+        for k in range(1,3): 
+            fig['layout']['xaxis%d'%k].update(showgrid=False, zeroline=False, showline=True, mirror='ticks', showticklabels=False) 
+            fig['layout']['yaxis%d'%k].update(showgrid=False, zeroline=False, showline=True, mirror='ticks', showticklabels=False) 
 
 
         plotly.offline.plot(fig, filename=str(subroot_path.joinpath('result.html'))) 
